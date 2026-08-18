@@ -1,0 +1,4 @@
+.claude/
+*.xlsx
+*.pdf
+backup-sst-vencimentos-*.json

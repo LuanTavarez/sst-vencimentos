@@ -1,0 +1,3557 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SST Vencimentos | Controle de Vencimentos de Documentos Obrigatórios</title>
+
+<!-- ============================================================
+     BIBLIOTECAS EXTERNAS (via CDN) — não requerem instalação
+     ============================================================ -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<link rel="icon" id="app-favicon" href="data:,">
+
+<style>
+/* ==================================================================
+   TOKENS DE DESIGN — Identidade visual "SST Vencimentos"
+   Inspirado em painéis corporativos (Power BI / Fabric / SAP) com um
+   acento de "faixa de segurança" (preto/âmbar) como elemento de
+   assinatura, remetendo ao universo de Segurança do Trabalho.
+   ================================================================== */
+:root{
+  --bg:#EEF1F7;
+  --surface:#FFFFFF;
+  --surface-2:#F6F8FC;
+  --border:#E1E6F0;
+  --ink:#101526;
+  --ink-soft:#5B6478;
+  --ink-faint:#8891A6;
+  --sidebar:#0D1120;
+  --sidebar-soft:#171D34;
+  --sidebar-border:#262E4A;
+  --primary:#1E4FD6;
+  --primary-dark:#1539A8;
+  --primary-soft:#E8EEFF;
+  --safety:#FFB100;
+  --verde:#158A45;
+  --verde-bg:#E4F6EB;
+  --amarelo:#B7791F;
+  --amarelo-bg:#FFF6DC;
+  --laranja:#C2540A;
+  --laranja-bg:#FFE9D8;
+  --vermelho:#C81E3A;
+  --vermelho-bg:#FCE2E6;
+  --cinza:#565F73;
+  --cinza-bg:#E7E9EF;
+  --secondary:#7C3AED;
+  --font-family:'Inter',system-ui,sans-serif;
+  --radius-card:14px;
+  --radius-btn:9px;
+}
+
+/* Tema escuro — ativado via atributo [data-theme="dark"] na tag <html> */
+[data-theme="dark"]{
+  --bg:#0A0D18;
+  --surface:#131826;
+  --surface-2:#191F32;
+  --border:#2A3149;
+  --ink:#EEF0F8;
+  --ink-soft:#9CA3BE;
+  --ink-faint:#6B7390;
+  --primary-soft:#182957;
+  --verde-bg:rgba(21,138,69,.18);
+  --amarelo-bg:rgba(183,121,31,.2);
+  --laranja-bg:rgba(194,84,10,.22);
+  --vermelho-bg:rgba(200,30,58,.22);
+  --cinza-bg:rgba(86,95,115,.28);
+}
+
+*{ font-family:var(--font-family); }
+body{ background:var(--bg); color:var(--ink); transition:background .2s ease, color .2s ease; }
+.theme-fade, .kpi-card, .chart-card, .table-wrap, .modal-box, .field-input, .field-select, .alert-card{ transition:background .2s ease, border-color .2s ease, color .2s ease; }
+.tabular{ font-variant-numeric: tabular-nums; }
+
+/* Faixa de segurança — elemento de assinatura do sistema */
+.hazard-stripe{
+  background-image: repeating-linear-gradient(45deg, var(--safety), var(--safety) 10px, #14182B 10px, #14182B 20px);
+  height:4px;
+}
+
+/* Scrollbar discreta */
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-track{ background:transparent; }
+::-webkit-scrollbar-thumb{ background:#C7CEDD; border-radius:8px; }
+::-webkit-scrollbar-thumb:hover{ background:#AEB7CC; }
+
+/* Navegação lateral */
+.nav-item{
+  display:flex; align-items:center; gap:.65rem;
+  padding:.6rem .85rem; border-radius:var(--radius-btn);
+  color:#B9C0DA; font-size:.86rem; font-weight:500;
+  cursor:pointer; transition:background .15s ease, color .15s ease;
+  border-left:3px solid transparent;
+}
+.nav-item:hover{ background:var(--sidebar-soft); color:#fff; }
+.nav-item.active{ background:var(--sidebar-soft); color:#fff; border-left-color:var(--safety); }
+.nav-item svg{ width:18px; height:18px; flex-shrink:0; }
+.nav-item:focus-visible{ outline:2px solid var(--safety); outline-offset:-2px; background:var(--sidebar-soft); color:#fff; }
+
+/* Cartões KPI */
+.kpi-card{
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-card);
+  padding:1rem 1.1rem; display:flex; flex-direction:column; gap:.35rem;
+  box-shadow:0 1px 2px rgba(16,21,38,.03);
+  transition:transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  text-align:left; width:100%; font-family:inherit;
+}
+.kpi-card:hover{ transform:translateY(-2px); box-shadow:0 8px 20px rgba(16,21,38,.07); }
+/* Cards clicáveis (viram atalho para a lista filtrada correspondente) */
+button.kpi-card{ cursor:pointer; }
+button.kpi-card:hover{ border-color:var(--primary); }
+button.kpi-card:focus-visible{ outline:2px solid var(--primary); outline-offset:2px; }
+.kpi-card-hint{ font-size:.65rem; font-weight:600; color:var(--primary); opacity:0; transition:opacity .12s ease; display:flex; align-items:center; gap:.2rem; }
+button.kpi-card:hover .kpi-card-hint, button.kpi-card:focus-visible .kpi-card-hint{ opacity:1; }
+.kpi-value{ font-size:1.65rem; font-weight:800; letter-spacing:-.02em; }
+.kpi-label{ font-size:.72rem; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.05em; }
+
+/* Badges de situação */
+.badge{ display:inline-flex; align-items:center; gap:.35rem; padding:.22rem .6rem; border-radius:999px; font-size:.72rem; font-weight:700; white-space:nowrap; }
+.badge-dot{ width:.5rem; height:.5rem; border-radius:999px; flex-shrink:0; }
+.badge-verde{ background:var(--verde-bg); color:var(--verde); }
+.badge-amarelo{ background:var(--amarelo-bg); color:var(--amarelo); }
+.badge-laranja{ background:var(--laranja-bg); color:var(--laranja); }
+.badge-vermelho{ background:var(--vermelho-bg); color:var(--vermelho); }
+.badge-cinza{ background:var(--cinza-bg); color:var(--cinza); }
+
+/* Botões */
+.btn{ display:inline-flex; align-items:center; gap:.4rem; font-size:.82rem; font-weight:600; padding:.5rem .85rem; border-radius:var(--radius-btn); transition:all .13s ease; cursor:pointer; border:1px solid transparent; white-space:nowrap; }
+.btn-primary{ background:var(--primary); color:#fff; }
+.btn-primary:hover{ background:var(--primary-dark); }
+.btn-outline{ background:var(--surface); color:var(--ink); border-color:var(--border); }
+.btn-outline:hover{ background:var(--surface-2); }
+.btn-ghost{ background:transparent; color:var(--ink-soft); }
+.btn-ghost:hover{ background:var(--surface-2); color:var(--ink); }
+.btn-danger{ background:var(--vermelho-bg); color:var(--vermelho); }
+.btn-danger:hover{ background:#f6c6cf; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+/* Inputs */
+.field-label{ font-size:.72rem; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.04em; margin-bottom:.25rem; display:block; }
+.field-input, .field-select{
+  width:100%; border:1px solid var(--border); border-radius:var(--radius-btn); padding:.5rem .65rem;
+  font-size:.85rem; background:var(--surface); color:var(--ink); outline:none;
+  transition:border-color .12s ease, box-shadow .12s ease;
+}
+.field-input:focus, .field-select:focus{ border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-soft); }
+
+/* Tabela */
+.table-wrap{ border:1px solid var(--border); border-radius:var(--radius-card); overflow:hidden; background:var(--surface); }
+table.data-table{ width:100%; border-collapse:collapse; font-size:.8rem; }
+table.data-table thead th{
+  position:sticky; top:0; background:var(--surface-2); z-index:1;
+  text-align:left; padding:.65rem .75rem; font-size:.68rem; font-weight:700; color:var(--ink-soft);
+  text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--border); cursor:pointer; user-select:none;
+  white-space:nowrap;
+}
+table.data-table thead th:hover{ color:var(--ink); }
+table.data-table tbody td{ padding:.6rem .75rem; border-bottom:1px solid var(--border); vertical-align:middle; white-space:nowrap; }
+table.data-table tbody tr:hover{ background:var(--surface-2); }
+table.data-table tbody tr:last-child td{ border-bottom:none; }
+
+/* Modal */
+.modal-overlay{ position:fixed; inset:0; background:rgba(13,17,32,.55); backdrop-filter:blur(2px); display:flex; align-items:center; justify-content:center; z-index:110; padding:1rem; }
+.modal-box{ background:var(--surface); border-radius:1rem; width:100%; max-height:92vh; overflow-y:auto; box-shadow:0 24px 60px rgba(10,14,30,.35); }
+
+/* Toasts de feedback (substituem alert()/confirm() nativos) */
+#toast-container{ position:fixed; z-index:130; bottom:1rem; right:1rem; max-width:min(340px, calc(100vw - 2rem)); display:flex; flex-direction:column; gap:.5rem; }
+.toast{ display:flex; align-items:flex-start; gap:.55rem; padding:.7rem .9rem; border-radius:.65rem; font-size:.8rem; font-weight:600; line-height:1.35; box-shadow:0 10px 30px rgba(10,14,30,.25); background:var(--surface); border:1px solid var(--border); color:var(--ink); opacity:0; transform:translateY(8px); transition:opacity .2s ease, transform .2s ease; }
+.toast.toast-show{ opacity:1; transform:translateY(0); }
+.toast-sucesso{ border-left:4px solid var(--verde); }
+.toast-erro{ border-left:4px solid var(--vermelho); }
+.toast-aviso{ border-left:4px solid var(--amarelo); }
+.toast-info{ border-left:4px solid var(--primary); }
+
+/* Cartão de alerta */
+.alert-card{ background:var(--surface); border:1px solid var(--border); border-left-width:4px; border-radius:.6rem; padding:.75rem .9rem; display:flex; justify-content:space-between; align-items:center; gap:1rem; }
+
+/* Empty state */
+.empty-state{ display:flex; flex-direction:column; align-items:center; justify-content:center; padding:3.5rem 1rem; text-align:center; color:var(--ink-soft); }
+
+/* Impressão */
+@media print{
+  #sidebar, #topbar, .no-print{ display:none !important; }
+  #main-content{ padding:0 !important; overflow:visible !important; }
+  body{ background:#fff !important; }
+  .table-wrap{ border:none; }
+}
+
+.chart-card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-card); padding:1rem; }
+.chart-card h3{ font-size:.8rem; font-weight:700; color:var(--ink); margin-bottom:.75rem; }
+.chart-box{ position:relative; height:230px; }
+
+.tag-pill{ background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:.15rem .6rem; font-size:.72rem; color:var(--ink-soft); font-weight:600; }
+
+/* Menu lateral recolhível (trilha de ícones) */
+#sidebar.sidebar-collapsed .nav-label{ display:none; }
+#sidebar.sidebar-collapsed .nav-item{ justify-content:center; padding-left:.5rem; padding-right:.5rem; }
+#sidebar.sidebar-collapsed #sidebar-header-row{ flex-direction:column; gap:.5rem; }
+
+/* ================= GRADE MATRICIAL DE TREINAMENTOS ================= */
+.matrix-wrap{ border:1px solid var(--border); border-radius:var(--radius-card); background:var(--surface); overflow:auto; max-height:calc(100vh - 300px); position:relative; }
+table.matrix-table{ border-collapse:separate; border-spacing:0; font-size:.78rem; }
+table.matrix-table thead th{
+  position:sticky; top:0; z-index:2; background:var(--surface-2); border-bottom:1px solid var(--border); border-right:1px solid var(--border);
+  padding:.55rem .6rem; font-size:.66rem; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.03em;
+  white-space:nowrap; text-align:center; cursor:pointer;
+}
+table.matrix-table thead th:hover{ color:var(--primary); }
+table.matrix-table thead th.matrix-col-fixa{ text-align:left; z-index:3; }
+table.matrix-table td{ border-bottom:1px solid var(--border); border-right:1px solid var(--border); padding:0; white-space:nowrap; }
+table.matrix-table td.matrix-col-fixa{
+  position:sticky; left:0; z-index:1; background:var(--surface); padding:.55rem .75rem; text-align:left;
+  box-shadow:2px 0 4px rgba(16,21,38,.03);
+}
+table.matrix-table thead th.matrix-col-fixa{ left:0; background:var(--surface-2); }
+table.matrix-table tbody tr:hover td.matrix-col-fixa{ background:var(--surface-2); }
+table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
+.matrix-cell-btn{
+  width:100%; height:100%; min-height:52px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:.15rem; cursor:pointer; padding:.4rem .5rem; border:none; background:transparent; font-family:inherit;
+}
+.matrix-cell-btn:hover{ background:var(--surface-2); }
+.matrix-cell-empty{ color:var(--ink-faint); font-size:.85rem; }
+.matrix-add-col{ width:44px; text-align:center; }
+.matrix-add-cell{ display:flex; align-items:center; justify-content:center; height:52px; }
+</style>
+</head>
+<body class="text-sm">
+
+<!-- Container de toasts (feedback visual padronizado, substitui alert()) -->
+<div id="toast-container" aria-live="polite"></div>
+
+<!-- ==============================================================
+     TELA DE BLOQUEIO — senha de acesso (opcional, definida em Configurações)
+     ============================================================== -->
+<div id="lock-screen" class="fixed inset-0 z-[100] flex items-center justify-center hidden" style="background:var(--sidebar);">
+  <div class="w-full max-w-sm mx-4 rounded-2xl p-8" style="background:var(--surface);">
+    <div class="flex flex-col items-center gap-2 mb-6 text-center">
+      <div id="lock-logo-icon-box" class="w-12 h-12 rounded-lg flex items-center justify-center mb-1" style="background:var(--safety);">
+        <svg viewBox="0 0 24 24" fill="none" class="w-6 h-6" style="color:#14182B;"><path d="M12 2 3 6v6c0 5 3.8 8.7 9 10 5.2-1.3 9-5 9-10V6l-9-4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12.5l2 2 4-4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <img id="lock-logo-custom-img" class="w-12 h-12 rounded-lg object-contain mb-1 hidden" alt="Logotipo">
+      <p id="lock-app-name" class="font-extrabold text-lg">SST Vencimentos</p>
+      <p class="text-xs" style="color:var(--ink-soft);">Acesso restrito — informe a senha para continuar</p>
+    </div>
+    <form id="form-lock" onsubmit="tentarDesbloquear(event)">
+      <label class="field-label">Senha de acesso</label>
+      <div class="relative mb-2">
+        <input type="password" id="lock-senha-input" class="field-input pr-9" autocomplete="current-password" required>
+        <button type="button" class="absolute right-2 top-1/2 -translate-y-1/2 btn-ghost btn !p-1" style="color:var(--ink-soft);" title="Mostrar/ocultar senha" onclick="alternarVisibilidadeSenhaLock()"><i class="fa-solid fa-eye" id="lock-senha-eye-icon"></i></button>
+      </div>
+      <p id="lock-erro" class="text-xs mb-3 hidden" style="color:var(--vermelho);">Senha incorreta. Verifique letras maiúsculas/minúsculas e o Caps Lock, e tente novamente.</p>
+      <button type="submit" class="btn btn-primary w-full justify-center">Entrar</button>
+      <div class="mt-3 pt-3 text-center" style="border-top:1px dashed var(--border);">
+        <p class="text-xs mb-2" style="color:var(--ink-soft);">Esqueceu a senha?</p>
+        <button type="button" id="lock-btn-email" class="btn btn-outline w-full justify-center mb-2 hidden" style="font-size:.75rem;" onclick="contatarResponsavelLock()"><i class="fa-solid fa-envelope"></i> Avisar o responsável por e-mail</button>
+        <button type="button" class="btn btn-ghost w-full justify-center" style="font-size:.72rem; color:var(--ink-soft);" onclick="esqueciSenhaLock()">Sou o responsável — redefinir agora</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="app-shell" class="flex h-screen overflow-hidden">
+
+  <!-- ==========================================================
+       SIDEBAR DE NAVEGAÇÃO
+       ========================================================== -->
+  <div id="sidebar-overlay" class="fixed inset-0 bg-black/40 z-30 hidden md:hidden" onclick="fecharSidebarMobile()"></div>
+  <aside id="sidebar" class="w-60 flex-shrink-0 flex flex-col fixed md:static inset-y-0 left-0 z-40 -translate-x-full md:translate-x-0 transition-all duration-200" style="background:var(--sidebar); border-right:1px solid var(--sidebar-border);">
+    <div class="px-3 py-4 flex items-center gap-2.5" id="sidebar-header-row" style="border-bottom:1px solid var(--sidebar-border);">
+      <button class="btn btn-ghost !p-2 flex-shrink-0 hidden md:inline-flex" style="color:#B9C0DA;" title="Recolher/expandir menu" onclick="alternarSidebarRecolhida()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+      </button>
+      <div id="logo-icon-box" class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style="background:var(--safety);">
+        <svg viewBox="0 0 24 24" fill="none" class="w-5 h-5" style="color:#14182B;"><path d="M12 2 3 6v6c0 5 3.8 8.7 9 10 5.2-1.3 9-5 9-10V6l-9-4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12.5l2 2 4-4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <img id="logo-custom-img" class="w-8 h-8 rounded-lg object-contain flex-shrink-0 hidden" alt="Logotipo">
+      <div class="nav-label min-w-0">
+        <p id="sidebar-app-name" class="text-white font-extrabold text-sm leading-tight truncate">SST Vencimentos</p>
+        <p id="sidebar-app-subtitle" class="text-[10px] font-semibold tracking-wide truncate" style="color:var(--ink-faint);">CONTROLE DOCUMENTAL</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto overflow-x-hidden">
+      <p class="nav-label px-2 pb-1 text-[10px] font-bold tracking-widest" style="color:#5C648A;">PRINCIPAL</p>
+      <div class="nav-item active" data-view="dashboard" title="Dashboard" onclick="goToView('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span class="nav-label">Dashboard</span>
+      </div>
+      <div class="nav-item" data-view="registros" title="Registros" onclick="goToView('registros')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+        <span class="nav-label">Registros</span>
+        <span id="nav-count-registros" class="nav-label ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full" style="background:var(--sidebar-soft); color:#B9C0DA;">0</span>
+      </div>
+      <div class="nav-item" data-view="alertas" title="Alertas" onclick="goToView('alertas')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <span class="nav-label">Alertas</span>
+        <span id="nav-count-alertas" class="nav-label ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full" style="background:var(--vermelho); color:#fff;">0</span>
+      </div>
+      <div class="nav-item" data-view="saude" title="Saúde / INSS (SESMT)" onclick="goToView('saude')">
+        <i class="fa-solid fa-heart-pulse" style="width:18px; text-align:center;"></i>
+        <span class="nav-label">Saúde / INSS</span>
+        <span id="nav-count-saude" class="nav-label ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full" style="background:var(--laranja); color:#fff;">0</span>
+      </div>
+      <div class="nav-item" data-view="configuracoes" title="Configurações" onclick="goToView('configuracoes')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+        <span class="nav-label">Configurações</span>
+      </div>
+
+      <p class="nav-label px-2 pt-4 pb-1 text-[10px] font-bold tracking-widest" style="color:#5C648A;">DADOS</p>
+      <div class="nav-item" id="nav-action-importar" title="Importar planilha" onclick="openImportModal()">
+        <i class="fa-solid fa-file-arrow-up" style="width:18px; text-align:center;"></i>
+        <span class="nav-label">Importar planilha</span>
+      </div>
+      <div class="nav-item" id="nav-action-novo" title="Novo registro" onclick="openRecordModal()">
+        <i class="fa-solid fa-plus" style="width:18px; text-align:center;"></i>
+        <span class="nav-label">Novo registro</span>
+      </div>
+      <div class="nav-item" id="nav-action-exportar-excel" title="Exportar Excel" onclick="exportExcel()">
+        <i class="fa-solid fa-file-excel" style="width:18px; text-align:center;"></i>
+        <span class="nav-label">Exportar Excel</span>
+      </div>
+      <div class="nav-item" id="nav-action-exportar-pdf" title="Exportar PDF" onclick="exportPDF()">
+        <i class="fa-solid fa-file-pdf" style="width:18px; text-align:center;"></i>
+        <span class="nav-label">Exportar PDF</span>
+      </div>
+    </nav>
+
+    <div class="nav-label px-4 py-3 text-[10px] leading-snug" id="sidebar-rodape" style="border-top:1px solid var(--sidebar-border); color:#5C648A;">
+      Dados salvos localmente neste navegador. Nenhuma informação é enviada a servidores externos.
+    </div>
+  </aside>
+
+
+  <!-- ==========================================================
+       ÁREA PRINCIPAL
+       ========================================================== -->
+  <div class="flex-1 flex flex-col overflow-hidden">
+    <div class="hazard-stripe"></div>
+    <header id="topbar" class="flex items-center gap-3 px-4 md:px-6 py-3.5" style="background:var(--surface); border-bottom:1px solid var(--border);">
+      <button class="btn btn-outline md:hidden !px-2.5" onclick="abrirSidebarMobile()" title="Menu">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <div class="flex-1 min-w-0">
+        <h1 id="view-title" class="text-lg font-extrabold leading-tight">Dashboard Geral</h1>
+        <p id="view-subtitle" class="text-xs" style="color:var(--ink-soft);">Visão consolidada dos vencimentos de documentos obrigatórios de SST</p>
+      </div>
+      <div class="relative w-64 hidden md:block">
+        <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color:var(--ink-faint);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="global-search" type="text" placeholder="Buscar colaborador ou matrícula..." class="field-input pl-9" oninput="onGlobalSearch()">
+      </div>
+      <button class="btn btn-outline" id="theme-toggle-btn" title="Alternar modo claro/escuro" onclick="alternarTema()">
+        <i class="fa-solid fa-moon" id="theme-toggle-icon"></i>
+      </button>
+      <button class="btn btn-outline !px-2.5 sm:!px-3.5" onclick="printView()" title="Imprimir">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-2M6 14h12v7H6z"/></svg>
+        <span class="hidden sm:inline">Imprimir</span>
+      </button>
+      <button class="btn btn-primary !px-2.5 sm:!px-3.5" id="topbar-btn-novo" onclick="openRecordModal()" title="Novo registro">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        <span class="hidden sm:inline">Novo registro</span>
+      </button>
+    </header>
+
+    <main id="main-content" class="flex-1 overflow-y-auto p-6">
+
+      <!-- ======================= VIEW: DASHBOARD ======================= -->
+      <section id="view-dashboard">
+
+        <!-- Estado vazio: nenhum colaborador cadastrado ainda -->
+        <div id="dashboard-empty" class="empty-state hidden chart-card mb-5">
+          <svg class="w-10 h-10 mb-2" style="color:var(--ink-faint);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+          <p class="font-semibold">Nenhum colaborador cadastrado ainda</p>
+          <p class="text-xs mt-1 mb-3">Cadastre manualmente ou importe uma planilha para ver o dashboard preenchido.</p>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" onclick="openRecordModal()"><i class="fa-solid fa-plus"></i> Novo registro</button>
+            <button class="btn btn-outline" onclick="openImportModal()"><i class="fa-solid fa-file-arrow-up"></i> Importar planilha</button>
+          </div>
+        </div>
+
+        <div id="dashboard-content">
+        <!-- Faixa de alerta crítico -->
+        <div id="critical-banner" class="hidden mb-5 rounded-xl px-4 py-3 flex items-center gap-3" style="background:var(--vermelho-bg); border:1px solid #F3B4C0;">
+          <svg class="w-5 h-5 flex-shrink-0" style="color:var(--vermelho);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <p class="text-sm font-semibold" style="color:var(--vermelho);"><span id="critical-count">0</span> documento(s) vencido(s) requerem ação imediata.</p>
+          <button class="ml-auto btn btn-ghost" style="color:var(--vermelho);" onclick="goToView('alertas')">Ver alertas →</button>
+        </div>
+
+        <!-- Resumo de Saúde / INSS (SESMT) -->
+        <div id="saude-dashboard-banner" class="hidden mb-5 rounded-xl px-4 py-3 flex flex-wrap items-center gap-3" style="background:var(--laranja-bg); border:1px solid var(--laranja);">
+          <svg class="w-5 h-5 flex-shrink-0" style="color:var(--laranja);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 6v6c0 5 3.8 8.7 9 10 5.2-1.3 9-5 9-10V6l-9-4Z"/><path d="M9 12.5l2 2 4-4.5"/></svg>
+          <p class="text-sm font-semibold" style="color:var(--laranja);"><span id="saude-dashboard-count">0</span> registro(s) de saúde/INSS em aberto (afastamentos, CAT, benefícios e reavaliações de restrição).</p>
+          <button class="ml-auto btn btn-ghost" style="color:var(--laranja);" onclick="goToView('saude')">Ver Saúde/INSS →</button>
+        </div>
+
+        <!-- KPIs -->
+        <div id="kpi-grid" class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3 mb-6"></div>
+
+        <!-- Percentuais -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div class="chart-card">
+            <h3>Percentual de documentos válidos</h3>
+            <div class="flex items-end gap-2"><span id="pct-validos" class="text-3xl font-extrabold" style="color:var(--verde);">0%</span></div>
+            <div class="w-full h-2 rounded-full mt-2" style="background:var(--verde-bg);"><div id="bar-validos" class="h-2 rounded-full" style="background:var(--verde); width:0%;"></div></div>
+          </div>
+          <div class="chart-card">
+            <h3>Percentual próximos do vencimento (≤30 dias)</h3>
+            <div class="flex items-end gap-2"><span id="pct-proximos" class="text-3xl font-extrabold" style="color:var(--amarelo);">0%</span></div>
+            <div class="w-full h-2 rounded-full mt-2" style="background:var(--amarelo-bg);"><div id="bar-proximos" class="h-2 rounded-full" style="background:var(--amarelo); width:0%;"></div></div>
+          </div>
+          <div class="chart-card">
+            <h3>Percentual de documentos vencidos</h3>
+            <div class="flex items-end gap-2"><span id="pct-vencidos" class="text-3xl font-extrabold" style="color:var(--vermelho);">0%</span></div>
+            <div class="w-full h-2 rounded-full mt-2" style="background:var(--vermelho-bg);"><div id="bar-vencidos" class="h-2 rounded-full" style="background:var(--vermelho); width:0%;"></div></div>
+          </div>
+        </div>
+
+        <!-- Gráficos -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          <div class="chart-card"><h3>Evolução mensal de vencimentos (± 6 meses)</h3><div class="chart-box"><canvas id="chart-evolucao"></canvas></div></div>
+          <div class="chart-card"><h3>Vencimentos por mês</h3><div class="chart-box"><canvas id="chart-mes"></canvas></div></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          <div class="chart-card"><h3>Vencimentos por empresa</h3><div class="chart-box"><canvas id="chart-empresa"></canvas></div></div>
+          <div class="chart-card"><h3>Vencimentos por unidade</h3><div class="chart-box"><canvas id="chart-unidade"></canvas></div></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          <div class="chart-card"><h3>Vencimentos por cliente</h3><div class="chart-box"><canvas id="chart-cliente"></canvas></div></div>
+          <div class="chart-card"><h3>Vencimentos por setor</h3><div class="chart-box"><canvas id="chart-setor"></canvas></div></div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+          <div class="chart-card"><h3>Vencimentos por gestor</h3><div class="chart-box"><canvas id="chart-gestor"></canvas></div></div>
+          <div class="chart-card"><h3>Distribuição por tipo de treinamento/documento</h3><div class="chart-box"><canvas id="chart-tipos"></canvas></div></div>
+        </div>
+        <div class="grid grid-cols-1 gap-4 mb-6">
+          <div class="chart-card"><h3>Colaboradores com maior quantidade de documentos vencidos</h3><div class="chart-box"><canvas id="chart-top-vencidos"></canvas></div></div>
+        </div>
+        </div><!-- /#dashboard-content -->
+      </section>
+
+      <!-- ======================= VIEW: REGISTROS ======================= -->
+      <section id="view-registros" class="hidden">
+        <div class="chart-card mb-4 no-print">
+          <div class="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
+            <div><label class="field-label">Situação (destaca linhas)</label><select id="f-situacao" class="field-select" onchange="renderTable()"><option value="">Todas</option><option value="verde">🟢 Verde</option><option value="amarelo">🟡 Amarelo</option><option value="laranja">🟠 Laranja</option><option value="vermelho">🔴 Vermelho</option><option value="cinza">⚫ Vencido</option></select></div>
+            <div><label class="field-label">Empresa</label><select id="f-empresa" class="field-select" onchange="renderTable()"><option value="">Todas</option></select></div>
+            <div><label class="field-label">Unidade</label><select id="f-unidade" class="field-select" onchange="renderTable()"><option value="">Todas</option></select></div>
+            <div><label class="field-label">Cliente</label><select id="f-cliente" class="field-select" onchange="renderTable()"><option value="">Todos</option></select></div>
+            <div><label class="field-label">Setor</label><select id="f-setor" class="field-select" onchange="renderTable()"><option value="">Todos</option></select></div>
+            <div><label class="field-label">Gestor</label><select id="f-gestor" class="field-select" onchange="renderTable()"><option value="">Todos</option></select></div>
+            <div><label class="field-label">Isolar coluna (tipo)</label><select id="f-tipo" class="field-select" onchange="renderTable()"><option value="">Mostrar todas</option></select></div>
+            <div class="flex items-end"><button class="btn btn-ghost w-full" onclick="limparFiltros()">Limpar filtros</button></div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mb-3 no-print">
+          <p class="text-xs" style="color:var(--ink-soft);"><span id="reg-count-info">0 colaboradores</span></p>
+          <div class="flex items-center gap-2">
+            <label class="text-xs font-semibold" style="color:var(--ink-soft);">Colaboradores por página</label>
+            <select id="page-size" class="field-select" style="width:auto;" onchange="state.pageSize=parseInt(this.value); state.page=1; renderTable();">
+              <option value="10">10</option><option value="25" selected>25</option><option value="50">50</option><option value="100">100</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="matrix-wrap">
+          <table class="matrix-table">
+            <thead><tr id="matrix-head-row"></tr></thead>
+            <tbody id="matrix-body"></tbody>
+          </table>
+          <div id="table-empty" class="empty-state hidden">
+            <svg class="w-10 h-10 mb-2" style="color:var(--ink-faint);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+            <p class="font-semibold">Nenhum colaborador encontrado</p>
+            <p class="text-xs mt-1">Cadastre manualmente ou importe uma planilha para começar.</p>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between mt-3 no-print">
+          <p class="text-xs" style="color:var(--ink-soft);" id="page-info">Página 1 de 1</p>
+          <div class="flex gap-2">
+            <button class="btn btn-outline" onclick="changePage(-1)">← Anterior</button>
+            <button class="btn btn-outline" onclick="changePage(1)">Próxima →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= VIEW: ALERTAS ======================= -->
+      <section id="view-alertas" class="hidden">
+        <div id="alertas-container" class="space-y-6"></div>
+      </section>
+
+      <!-- ======================= VIEW: SAÚDE / INSS (SESMT) ======================= -->
+      <section id="view-saude" class="hidden">
+        <div class="chart-card mb-4">
+          <div class="flex items-center justify-between mb-1 gap-2 flex-wrap">
+            <h3 class="!text-sm !mb-0">Controle de Saúde Ocupacional e Benefícios INSS</h3>
+            <div class="flex items-center gap-2 no-print">
+              <button class="btn btn-outline" onclick="exportSaudeExcel()" title="Exportar Excel"><i class="fa-solid fa-file-excel"></i> <span class="hidden sm:inline">Excel</span></button>
+              <button class="btn btn-outline" onclick="exportSaudePDF()" title="Exportar PDF"><i class="fa-solid fa-file-pdf"></i> <span class="hidden sm:inline">PDF</span></button>
+              <button class="btn btn-outline" onclick="printView()" title="Imprimir"><i class="fa-solid fa-print"></i> <span class="hidden sm:inline">Imprimir</span></button>
+              <button class="btn btn-primary" onclick="openSaudeModal()"><i class="fa-solid fa-plus"></i> Novo registro de saúde/INSS</button>
+            </div>
+          </div>
+          <p class="text-xs" style="color:var(--ink-soft);">Afastamentos/atestados, CAT, benefícios previdenciários e restrições/readaptação — vinculados aos colaboradores já cadastrados em Registros.</p>
+        </div>
+
+        <div id="saude-kpi-grid" class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 no-print">
+          <div class="chart-card"><h3>Distribuição por tipo de registro</h3><div class="chart-box"><canvas id="chart-saude-tipo"></canvas></div></div>
+          <div class="chart-card"><h3>Registros de saúde/INSS por mês (data de início)</h3><div class="chart-box"><canvas id="chart-saude-mes"></canvas></div></div>
+        </div>
+
+        <div class="chart-card mb-4 no-print">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div><label class="field-label">Buscar colaborador</label><input id="sd-f-busca" class="field-input" placeholder="Nome ou matrícula..." oninput="renderSaude()"></div>
+            <div><label class="field-label">Tipo</label>
+              <select id="sd-f-tipo" class="field-select" onchange="renderSaude()">
+                <option value="">Todos</option>
+                <option value="afastamento">Afastamento/Atestado</option>
+                <option value="cat">CAT</option>
+                <option value="beneficio">Benefício INSS</option>
+                <option value="restricao">Restrição/Readaptação</option>
+              </select>
+            </div>
+            <div><label class="field-label">Status</label>
+              <select id="sd-f-status" class="field-select" onchange="renderSaude()">
+                <option value="">Todos</option>
+                <option value="aberto">Em aberto</option>
+                <option value="encerrado">Encerrado</option>
+              </select>
+            </div>
+            <div class="flex items-end"><button class="btn btn-ghost w-full" onclick="limparFiltrosSaude()">Limpar filtros</button></div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr id="saude-head-row"></tr></thead>
+            <tbody id="saude-body"></tbody>
+          </table>
+          <div id="saude-empty" class="empty-state hidden">
+            <svg class="w-10 h-10 mb-2" style="color:var(--ink-faint);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2 3 6v6c0 5 3.8 8.7 9 10 5.2-1.3 9-5 9-10V6l-9-4Z"/><path d="M9 12.5l2 2 4-4.5"/></svg>
+            <p class="font-semibold">Nenhum registro de saúde/INSS encontrado</p>
+            <p class="text-xs mt-1">Clique em "Novo registro de saúde/INSS" para começar a controlar afastamentos, CAT, benefícios e restrições.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================= VIEW: CONFIGURAÇÕES ======================= -->
+      <section id="view-configuracoes" class="hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          <!-- Identidade visual -->
+          <div class="chart-card">
+            <h3 class="!text-sm !mb-4">Identidade visual</h3>
+
+            <label class="field-label">Nome do sistema</label>
+            <input id="cfg-nome" class="field-input mb-3" placeholder="Ex: SST Vencimentos">
+
+            <label class="field-label">Subtítulo (menu lateral)</label>
+            <input id="cfg-subtitulo" class="field-input mb-3" placeholder="Ex: CONTROLE DOCUMENTAL">
+
+            <label class="field-label">Rodapé do menu lateral</label>
+            <input id="cfg-rodape" class="field-input mb-3" placeholder="Ex: Dados salvos localmente neste navegador.">
+
+            <label class="field-label">Logotipo</label>
+            <div class="flex items-center gap-3 mb-1">
+              <div id="cfg-logo-preview-box" class="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0" style="background:var(--safety);">
+                <svg viewBox="0 0 24 24" fill="none" class="w-6 h-6" style="color:#14182B;"><path d="M12 2 3 6v6c0 5 3.8 8.7 9 10 5.2-1.3 9-5 9-10V6l-9-4Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12.5l2 2 4-4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <img id="cfg-logo-preview-img" class="w-12 h-12 rounded-lg object-contain flex-shrink-0 hidden" alt="Prévia do logotipo" style="border:1px solid var(--border);">
+              <div class="flex gap-2">
+                <label class="btn btn-outline" for="cfg-logo-file"><i class="fa-solid fa-upload"></i> Enviar imagem</label>
+                <button type="button" class="btn btn-ghost" onclick="removerLogoCustomizado()">Usar ícone padrão</button>
+              </div>
+              <input type="file" id="cfg-logo-file" accept="image/*" class="hidden" onchange="onLogoFileSelect(event)">
+            </div>
+            <p class="text-xs mb-3" style="color:var(--ink-soft);">PNG ou SVG com fundo transparente funciona melhor. Máx. recomendado: 200×200px.</p>
+
+            <label class="field-label">Favicon (ícone da aba do navegador)</label>
+            <div class="flex items-center gap-3">
+              <label class="btn btn-outline" for="cfg-favicon-file"><i class="fa-solid fa-upload"></i> Enviar favicon</label>
+              <button type="button" class="btn btn-ghost" onclick="removerFaviconCustomizado()">Usar padrão</button>
+              <input type="file" id="cfg-favicon-file" accept="image/*" class="hidden" onchange="onFaviconFileSelect(event)">
+            </div>
+          </div>
+
+          <!-- Cores do sistema -->
+          <div class="chart-card">
+            <h3 class="!text-sm !mb-4">Cores do sistema</h3>
+            <div class="grid grid-cols-2 gap-x-4 gap-y-3">
+              <div>
+                <label class="field-label">Cor primária</label>
+                <div class="flex items-center gap-2"><input type="color" id="cfg-cor-primaria" class="h-9 w-12 rounded border" style="border-color:var(--border);"><span class="text-xs" style="color:var(--ink-soft);">Botões e destaques</span></div>
+              </div>
+              <div>
+                <label class="field-label">Cor secundária</label>
+                <div class="flex items-center gap-2"><input type="color" id="cfg-cor-secundaria" class="h-9 w-12 rounded border" style="border-color:var(--border);"><span class="text-xs" style="color:var(--ink-soft);">Detalhes e links</span></div>
+              </div>
+              <div>
+                <label class="field-label">Cor de acento (segurança)</label>
+                <div class="flex items-center gap-2"><input type="color" id="cfg-cor-acento" class="h-9 w-12 rounded border" style="border-color:var(--border);"><span class="text-xs" style="color:var(--ink-soft);">Logo e faixa superior</span></div>
+              </div>
+              <div>
+                <label class="field-label">Fundo do menu lateral</label>
+                <div class="flex items-center gap-2"><input type="color" id="cfg-cor-sidebar" class="h-9 w-12 rounded border" style="border-color:var(--border);"></div>
+              </div>
+              <div>
+                <label class="field-label">🟢 Situação Verde</label>
+                <div class="flex items-center gap-2"><input type="color" id="cfg-cor-verde" class="h-9 w-12 rounded border" style="border-color:var(--border);"></div>
+              </div>
+              <div>
+                <label class="field-label">🟡 Situação Amarela</label>
+                <div class="flex items-center gap-2"><input type="color" id="cfg-cor-amarelo" class="h-9 w-12 rounded border" style="border-color:var(--border);"></div>
+              </div>
+              <div>
+                <label class="field-label">🟠 Situação Laranja</label>
+                <div class="flex items-center gap-2"><input type="color" id="cfg-cor-laranja" class="h-9 w-12 rounded border" style="border-color:var(--border);"></div>
+              </div>
+              <div>
+                <label class="field-label">🔴 Situação Vermelha</label>
+                <div class="flex items-center gap-2"><input type="color" id="cfg-cor-vermelho" class="h-9 w-12 rounded border" style="border-color:var(--border);"></div>
+              </div>
+              <div>
+                <label class="field-label">⚫ Vencido / Neutro</label>
+                <div class="flex items-center gap-2"><input type="color" id="cfg-cor-cinza" class="h-9 w-12 rounded border" style="border-color:var(--border);"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aparência avançada -->
+          <div class="chart-card">
+            <h3 class="!text-sm !mb-4">Aparência</h3>
+            <label class="field-label">Tema</label>
+            <select id="cfg-tema" class="field-select mb-3">
+              <option value="light">Claro</option>
+              <option value="dark">Escuro</option>
+              <option value="auto">Automático (segue o sistema operacional)</option>
+            </select>
+
+            <label class="field-label">Fonte</label>
+            <select id="cfg-fonte" class="field-select mb-3">
+              <option value="'Inter',system-ui,sans-serif">Inter (padrão)</option>
+              <option value="'Roboto',system-ui,sans-serif">Roboto</option>
+              <option value="'Open Sans',system-ui,sans-serif">Open Sans</option>
+              <option value="'IBM Plex Sans',system-ui,sans-serif">IBM Plex Sans</option>
+              <option value="Arial,system-ui,sans-serif">Arial</option>
+            </select>
+
+            <label class="field-label">Tamanho da fonte (%)</label>
+            <input type="range" id="cfg-tamanho-fonte" min="85" max="115" step="5" value="100" class="w-full mb-3">
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="field-label">Raio dos cards (px)</label>
+                <input type="range" id="cfg-raio-card" min="0" max="24" step="2" value="14" class="w-full">
+              </div>
+              <div>
+                <label class="field-label">Raio dos botões (px)</label>
+                <input type="range" id="cfg-raio-botao" min="0" max="20" step="2" value="9" class="w-full">
+              </div>
+            </div>
+          </div>
+
+          <!-- Módulos do menu -->
+          <div class="chart-card">
+            <h3 class="!text-sm !mb-4">Módulos visíveis no menu</h3>
+            <div class="space-y-2">
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-dashboard" checked> Dashboard</label>
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-registros" checked> Registros (grade de colaboradores)</label>
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-alertas" checked> Alertas</label>
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-saude" checked> Saúde / INSS (SESMT)</label>
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-importar" checked> Importar planilha</label>
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-novo" checked> Novo registro</label>
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-exportar" checked> Exportar Excel / PDF</label>
+            </div>
+            <p class="text-xs mt-3" style="color:var(--ink-soft);">Configurações fica sempre visível para não travar o acesso ao painel.</p>
+          </div>
+        </div>
+
+        <!-- Tipos de treinamento -->
+        <div class="chart-card mt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="!text-sm !mb-0">Tipos de treinamento / documento</h3>
+            <button class="btn btn-outline" onclick="adicionarTipoConfig()"><i class="fa-solid fa-plus"></i> Novo tipo</button>
+          </div>
+          <div id="cfg-tipos-lista" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2"></div>
+        </div>
+
+        <!-- Alertas -->
+        <div class="chart-card mt-4">
+          <h3 class="!text-sm !mb-3">Janelas de alerta exibidas no Dashboard e em Alertas</h3>
+          <div class="grid grid-cols-2 md:grid-cols-6 gap-2">
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-alerta-90" checked> 90 dias</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-alerta-60" checked> 60 dias</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-alerta-30" checked> 30 dias</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-alerta-15" checked> 15 dias</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-alerta-7" checked> 7 dias</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-alerta-hoje" checked> Hoje</label>
+          </div>
+        </div>
+
+        <!-- Segurança -->
+        <div class="chart-card mt-4">
+          <h3 class="!text-sm !mb-3">Segurança — senha de acesso ao sistema</h3>
+          <p class="text-xs mb-3" style="color:var(--ink-soft);">Protege a abertura do sistema com uma senha única compartilhada pela empresa. Como tudo roda no navegador, isso funciona como um cadeado simples (evita acesso casual) — não é uma proteção de nível corporativo.</p>
+          <label class="flex items-center gap-2 text-sm mb-3"><input type="checkbox" id="cfg-senha-ativa"> Exigir senha para acessar o sistema</label>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+            <div><label class="field-label">Nova senha</label><input type="password" id="cfg-senha-nova" class="field-input" placeholder="Deixe em branco para manter a atual" autocomplete="off"></div>
+            <div><label class="field-label">Confirmar nova senha</label><input type="password" id="cfg-senha-confirmar" class="field-input" autocomplete="off"></div>
+          </div>
+          <div class="mb-2">
+            <label class="field-label">E-mail do responsável (para recuperação)</label>
+            <input type="email" id="cfg-senha-email" class="field-input" placeholder="Ex: ti@suaempresa.com.br">
+            <p class="text-xs mt-1" style="color:var(--ink-soft);">Não envia e-mail automaticamente (o sistema não tem servidor) — na tela de bloqueio, "Esqueci minha senha" abre um e-mail pronto para esse endereço, avisando o responsável.</p>
+          </div>
+          <p id="cfg-senha-status" class="text-xs mb-3" style="color:var(--ink-soft);">Nenhuma senha definida ainda.</p>
+          <div class="flex items-center gap-2">
+            <button class="btn btn-primary" onclick="salvarSenhaAcesso()"><i class="fa-solid fa-lock"></i> Salvar senha</button>
+            <button class="btn btn-outline" onclick="removerSenhaAcesso()">Remover senha</button>
+          </div>
+        </div>
+
+        <!-- Backup -->
+        <div class="chart-card mt-4">
+          <h3 class="!text-sm !mb-3">Backup e dados</h3>
+          <div class="flex flex-wrap gap-2">
+            <button class="btn btn-outline" onclick="exportarBackup()"><i class="fa-solid fa-download"></i> Exportar banco (.json)</button>
+            <label class="btn btn-outline" for="cfg-backup-file"><i class="fa-solid fa-upload"></i> Importar / restaurar backup</label>
+            <input type="file" id="cfg-backup-file" accept=".json" class="hidden" onchange="importarBackup(event)">
+            <button class="btn btn-danger" onclick="limparBancoDados()"><i class="fa-solid fa-trash"></i> Limpar banco de dados</button>
+          </div>
+          <p class="text-xs mt-2" style="color:var(--ink-soft);">O backup inclui colaboradores, treinamentos, tipos customizados e todas as configurações visuais.</p>
+        </div>
+
+        <div class="flex items-center gap-2 mt-4">
+          <button class="btn btn-primary" onclick="salvarConfiguracoes()"><i class="fa-solid fa-check"></i> Salvar alterações</button>
+          <button class="btn btn-outline" onclick="restaurarConfiguracoesPadrao()">Restaurar padrão</button>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ==============================================================
+     TRAVA IMEDIATA DE ACESSO
+     Roda assim que o HTML acima é interpretado, ANTES do script
+     principal (que só executa lá embaixo, depois de tudo carregar).
+     Não depende de nenhuma outra função — só lê o localStorage
+     diretamente e esconde o sistema na hora, se houver senha ativa.
+     A tela de login (com a validação real da senha) continua sendo
+     tratada pelo script principal mais abaixo.
+     ============================================================== -->
+<script>
+(function(){
+  try{
+    var bloqueio = JSON.parse(localStorage.getItem('sst_vencimentos_lock') || '{}');
+    if(bloqueio && bloqueio.ativo && bloqueio.hash){
+      document.getElementById('app-shell').style.display = 'none';
+      document.getElementById('lock-screen').classList.remove('hidden');
+    }
+  }catch(e){ /* se der qualquer erro aqui, o sistema segue liberado normalmente */ }
+})();
+</script>
+
+<!-- ==============================================================
+     MODAL: CADASTRO / EDIÇÃO DE REGISTRO
+     ============================================================== -->
+<div id="modal-registro" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:980px;">
+    <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid var(--border);">
+      <div>
+        <h2 id="modal-registro-title" class="text-base font-extrabold">Novo registro de colaborador</h2>
+        <p class="text-xs" style="color:var(--ink-soft);">Um colaborador pode ter vários documentos/treinamentos vinculados a este mesmo registro</p>
+      </div>
+      <button class="btn-ghost btn" onclick="closeRecordModal()">✕</button>
+    </div>
+    <form id="form-registro" class="px-6 py-5" onsubmit="salvarRegistro(event)">
+      <input type="hidden" id="r-id">
+
+      <p class="field-label mb-2" style="color:var(--primary);">Dados do colaborador</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div><label class="field-label">Nome do colaborador *</label><input required id="r-nome" class="field-input" placeholder="Ex: João da Silva"></div>
+        <div><label class="field-label">Matrícula *</label><input required id="r-matricula" class="field-input" placeholder="Ex: 00123"></div>
+        <div><label class="field-label">CPF (opcional)</label><input id="r-cpf" class="field-input" placeholder="000.000.000-00"></div>
+
+        <div><label class="field-label">Empresa *</label><input required id="r-empresa" class="field-input" list="dl-empresa"><datalist id="dl-empresa"></datalist></div>
+        <div><label class="field-label">Unidade *</label><input required id="r-unidade" class="field-input" list="dl-unidade"><datalist id="dl-unidade"></datalist></div>
+        <div><label class="field-label">Cliente *</label><input required id="r-cliente" class="field-input" list="dl-cliente"><datalist id="dl-cliente"></datalist></div>
+
+        <div><label class="field-label">Contrato *</label><input required id="r-contrato" class="field-input" list="dl-contrato"><datalist id="dl-contrato"></datalist></div>
+        <div><label class="field-label">Centro de custo</label><input id="r-centro-custo" class="field-input" list="dl-centroCusto"><datalist id="dl-centroCusto"></datalist></div>
+        <div><label class="field-label">Setor *</label><input required id="r-setor" class="field-input" list="dl-setor"><datalist id="dl-setor"></datalist></div>
+
+        <div><label class="field-label">Cargo *</label><input required id="r-cargo" class="field-input" list="dl-cargo"><datalist id="dl-cargo"></datalist></div>
+        <div><label class="field-label">Gestor *</label><input required id="r-gestor" class="field-input" list="dl-gestor"><datalist id="dl-gestor"></datalist></div>
+      </div>
+
+      <div class="flex items-center justify-between mt-6 pt-4" style="border-top:1px dashed var(--border);">
+        <p class="field-label" style="color:var(--primary);">Documentos e treinamentos deste colaborador</p>
+        <button type="button" class="btn btn-outline" onclick="adicionarTreinamentoRow()"><i class="fa-solid fa-plus"></i> Adicionar treinamento</button>
+      </div>
+      <div id="r-treinamentos-list" class="mt-3 space-y-3"></div>
+
+      <div class="flex justify-end gap-2 mt-6 pt-4" style="border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-outline" onclick="closeRecordModal()">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar registro do colaborador</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==============================================================
+     MODAL: DETALHE DE UM TREINAMENTO (aberto ao clicar numa célula da grade)
+     ============================================================== -->
+<div id="modal-detalhe" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:760px;">
+    <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid var(--border);">
+      <div>
+        <h2 id="detalhe-titulo" class="text-base font-extrabold">Treinamento</h2>
+        <p id="detalhe-subtitulo" class="text-xs" style="color:var(--ink-soft);"></p>
+      </div>
+      <button class="btn-ghost btn" onclick="closeDetalheModal()">✕</button>
+    </div>
+    <div class="px-6 py-5">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs" style="color:var(--ink-soft);">Geralmente há apenas um registro vigente. Use "Adicionar ocorrência" para manter o histórico ao invés de apagar o anterior.</p>
+        <button type="button" class="btn btn-outline flex-shrink-0" onclick="adicionarOcorrenciaDetalhe()"><i class="fa-solid fa-plus"></i> Adicionar ocorrência</button>
+      </div>
+      <div id="detalhe-treinamentos-list" class="space-y-3"></div>
+    </div>
+    <div class="flex justify-end gap-2 px-6 py-4" style="border-top:1px solid var(--border);">
+      <button type="button" class="btn btn-outline" onclick="closeDetalheModal()">Cancelar</button>
+      <button type="button" class="btn btn-primary" onclick="salvarDetalhe()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==============================================================
+     MODAL: IMPORTAÇÃO DE PLANILHA (Excel / CSV)
+     ============================================================== -->
+<div id="modal-importar" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:920px;">
+    <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid var(--border);">
+      <div>
+        <h2 class="text-base font-extrabold">Importar planilha</h2>
+        <p class="text-xs" style="color:var(--ink-soft);">Aceita arquivos .xlsx, .xls e .csv — qualquer layout de colunas</p>
+      </div>
+      <button class="btn-ghost btn" onclick="closeImportModal()">✕</button>
+    </div>
+
+    <div class="px-6 py-5">
+      <!-- Passo 1: upload -->
+      <div id="import-step-1">
+        <label for="import-file-input" class="flex flex-col items-center justify-center gap-2 rounded-xl cursor-pointer py-10" style="border:2px dashed var(--border); background:var(--surface-2);">
+          <svg class="w-9 h-9" style="color:var(--primary);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <span class="font-semibold text-sm">Clique para selecionar o arquivo</span>
+          <span class="text-xs" style="color:var(--ink-soft);">.xlsx, .xls ou .csv</span>
+        </label>
+        <input id="import-file-input" type="file" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleFileSelect(event)">
+      </div>
+
+      <!-- Passo 2: mapeamento inteligente de colunas -->
+      <div id="import-step-2" class="hidden">
+        <div class="flex items-center gap-2 mb-3 rounded-lg px-3 py-2" style="background:var(--primary-soft);">
+          <svg class="w-4 h-4 flex-shrink-0" style="color:var(--primary);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 6v6c0 5 3.8 8.7 9 10 5.2-1.3 9-5 9-10V6l-9-4Z"/></svg>
+          <p class="text-xs font-medium" style="color:var(--primary-dark);">O sistema identificou automaticamente as colunas da sua planilha. Revise e ajuste o mapeamento antes de confirmar.</p>
+        </div>
+        <div id="mapping-grid" class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 max-h-[45vh] overflow-y-auto pr-1"></div>
+        <p class="text-xs mt-3" style="color:var(--ink-soft);"><span id="import-row-count">0</span> linha(s) detectada(s) no arquivo.</p>
+      </div>
+
+      <!-- Passo 3: resumo -->
+      <div id="import-step-3" class="hidden text-center py-8">
+        <svg class="w-12 h-12 mx-auto mb-3" style="color:var(--verde);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><path d="m8 12 3 3 5-6"/></svg>
+        <p class="font-extrabold text-base" id="import-summary-title">Importação concluída</p>
+        <p class="text-sm mt-1" style="color:var(--ink-soft);" id="import-summary-text"></p>
+      </div>
+    </div>
+
+    <div class="flex justify-end gap-2 px-6 py-4" style="border-top:1px solid var(--border);">
+      <button type="button" class="btn btn-outline" onclick="closeImportModal()">Fechar</button>
+      <button type="button" id="import-confirm-btn" class="btn btn-primary hidden" onclick="confirmImport()">Confirmar importação</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==============================================================
+     MODAL: CONFIRMAÇÃO DE EXCLUSÃO
+     ============================================================== -->
+<div id="modal-confirm" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:380px;">
+    <div class="px-6 py-6 text-center">
+      <svg class="w-10 h-10 mx-auto mb-3" style="color:var(--vermelho);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M10.3 3.9 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+      <p class="font-bold text-sm" id="confirm-titulo">Excluir este treinamento/documento?</p>
+      <p class="text-xs mt-1" style="color:var(--ink-soft);" id="confirm-texto">Esta ação não pode ser desfeita. Se for o único treinamento do colaborador, o registro dele também será removido.</p>
+      <div class="flex gap-2 mt-5">
+        <button class="btn btn-outline flex-1" onclick="closeConfirmModal()">Cancelar</button>
+        <button class="btn btn-danger flex-1" id="confirm-delete-btn">Excluir</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==============================================================
+     MODAL: NOVO TIPO (substitui os prompt() nativos de "novo tipo")
+     ============================================================== -->
+<div id="modal-tipo-prompt" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:380px;">
+    <div class="px-6 py-5">
+      <p class="font-bold text-sm mb-3">Novo tipo de treinamento/documento</p>
+      <label class="field-label">Nome</label>
+      <input id="tipo-prompt-nome" class="field-input mb-3" placeholder="Ex: NR-06" autocomplete="off">
+      <label class="field-label">Validade padrão (meses)</label>
+      <input type="number" min="0" id="tipo-prompt-meses" class="field-input" value="12">
+    </div>
+    <div class="flex justify-end gap-2 px-6 py-4" style="border-top:1px solid var(--border);">
+      <button type="button" class="btn btn-outline" onclick="closeTipoPromptModal()">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="tipo-prompt-confirm-btn">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==============================================================
+     MODAL: REGISTRO DE SAÚDE / INSS (SESMT)
+     ============================================================== -->
+<div id="modal-saude" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:760px;">
+    <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid var(--border);">
+      <div>
+        <h2 id="modal-saude-title" class="text-base font-extrabold">Novo registro de saúde / INSS</h2>
+        <p class="text-xs" style="color:var(--ink-soft);">Afastamento/atestado, CAT, benefício INSS ou restrição/readaptação de um colaborador já cadastrado</p>
+      </div>
+      <button class="btn-ghost btn" onclick="closeSaudeModal()">✕</button>
+    </div>
+    <form id="form-saude" class="px-6 py-5" onsubmit="salvarSaude(event)">
+      <input type="hidden" id="sd-id">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="field-label">Colaborador *</label>
+          <input required id="sd-colaborador-busca" class="field-input" list="dl-colaboradores-saude" placeholder="Digite nome ou matrícula..." autocomplete="off" oninput="onSaudeColaboradorInput()">
+          <datalist id="dl-colaboradores-saude"></datalist>
+          <input type="hidden" id="sd-colaborador-id">
+          <p id="sd-colaborador-erro" class="text-xs mt-1 hidden" style="color:var(--vermelho);">Selecione um colaborador válido da lista (já cadastrado em Registros).</p>
+        </div>
+        <div>
+          <label class="field-label">Tipo de registro *</label>
+          <select required id="sd-tipo" class="field-select" onchange="onSaudeTipoChange()">
+            <option value="afastamento">Afastamento / Atestado</option>
+            <option value="cat">CAT — Comunicação de Acidente de Trabalho</option>
+            <option value="beneficio">Benefício INSS</option>
+            <option value="restricao">Restrição / Readaptação de função</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+        <div><label class="field-label" id="sd-label-data-inicio">Data de início *</label><input required type="date" id="sd-data-inicio" class="field-input"></div>
+        <div><label class="field-label" id="sd-label-data-fim">Data de término / prevista</label><input type="date" id="sd-data-fim" class="field-input"></div>
+      </div>
+
+      <!-- Campos específicos: Afastamento / Atestado -->
+      <div id="sd-campos-afastamento" class="mt-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label class="field-label">CID (opcional)</label><input id="sd-af-cid" class="field-input" placeholder="Ex: M54.5"></div>
+          <div><label class="field-label">Motivo do afastamento</label><input id="sd-af-motivo" class="field-input" list="dl-motivo-afastamento" placeholder="Ex: Doença, Acidente de trabalho, Maternidade...">
+            <datalist id="dl-motivo-afastamento">
+              <option value="Doença comum">
+              <option value="Acidente de trabalho">
+              <option value="Doença ocupacional">
+              <option value="Licença maternidade">
+              <option value="Acidente de trajeto">
+            </datalist>
+          </div>
+        </div>
+      </div>
+
+      <!-- Campos específicos: CAT -->
+      <div id="sd-campos-cat" class="mt-3 hidden">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div><label class="field-label">Nº da CAT</label><input id="sd-cat-numero" class="field-input"></div>
+          <div><label class="field-label">Data do acidente</label><input type="date" id="sd-cat-data-acidente" class="field-input"></div>
+          <div><label class="field-label">Tipo de acidente</label>
+            <select id="sd-cat-tipo" class="field-select">
+              <option value="Típico">Típico</option>
+              <option value="Trajeto">Trajeto</option>
+              <option value="Doença ocupacional">Doença ocupacional</option>
+            </select>
+          </div>
+          <div><label class="field-label">Órgão notificado</label><input id="sd-cat-orgao" class="field-input" placeholder="Ex: INSS, sindicato..."></div>
+          <div class="md:col-span-2">
+            <label class="field-label">Situação da CAT</label>
+            <select id="sd-cat-situacao" class="field-select">
+              <option value="Aberta">Aberta</option>
+              <option value="Em análise">Em análise</option>
+              <option value="Encerrada">Encerrada</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Campos específicos: Benefício INSS -->
+      <div id="sd-campos-beneficio" class="mt-3 hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label class="field-label">Tipo de benefício</label><input id="sd-ben-tipo" class="field-input" list="dl-tipo-beneficio" placeholder="Ex: Auxílio-doença (B31)">
+            <datalist id="dl-tipo-beneficio">
+              <option value="Auxílio-doença (B31)">
+              <option value="Auxílio-acidentário (B91)">
+              <option value="Aposentadoria por invalidez (B32)">
+              <option value="Salário-maternidade (B80)">
+            </datalist>
+          </div>
+          <div><label class="field-label">Nº do benefício</label><input id="sd-ben-numero" class="field-input"></div>
+          <div><label class="field-label">Situação do benefício</label>
+            <select id="sd-ben-situacao" class="field-select">
+              <option value="Ativo">Ativo</option>
+              <option value="Em perícia">Em perícia</option>
+              <option value="Cessado">Cessado</option>
+            </select>
+          </div>
+          <div><label class="field-label">Data da próxima perícia</label><input type="date" id="sd-ben-pericia" class="field-input"></div>
+        </div>
+      </div>
+
+      <!-- Campos específicos: Restrição / Readaptação -->
+      <div id="sd-campos-restricao" class="mt-3 hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div><label class="field-label">Função de origem</label><input id="sd-res-funcao-origem" class="field-input"></div>
+          <div><label class="field-label">Restrição / função readaptada</label><input id="sd-res-descricao" class="field-input" placeholder="Ex: Vedado esforço físico intenso"></div>
+        </div>
+        <p class="text-xs mt-1" style="color:var(--ink-soft);">Use "Data de término / prevista" acima como a data de validade/reavaliação da restrição — o sistema vai alertar quando estiver próxima.</p>
+      </div>
+
+      <div class="mt-3"><label class="field-label">Observações</label><textarea id="sd-observacoes" class="field-input" rows="2"></textarea></div>
+
+      <div class="mt-3 flex items-center gap-2 flex-wrap">
+        <label class="btn btn-outline !py-1.5" style="font-size:.72rem;" for="sd-anexo-file"><i class="fa-solid fa-paperclip"></i> Anexar documento (laudo, CAT, atestado...)</label>
+        <input type="file" id="sd-anexo-file" accept=".pdf,image/*" class="hidden" onchange="onSaudeAnexoSelect(this)">
+        <span id="sd-anexo-info"><span class="text-xs" style="color:var(--ink-faint);">Nenhum arquivo anexado</span></span>
+      </div>
+
+      <div class="flex items-center justify-between gap-2 mt-6 pt-4" style="border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-danger hidden" id="sd-btn-excluir" onclick="pedirExclusaoSaude()"><i class="fa-solid fa-trash"></i> Excluir registro</button>
+        <div class="flex justify-end gap-2 ml-auto">
+          <button type="button" class="btn btn-outline" onclick="closeSaudeModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar registro</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+/* ====================================================================
+   SST VENCIMENTOS — LÓGICA DA APLICAÇÃO
+   Sistema 100% client-side. Dados persistidos em localStorage.
+   ==================================================================== */
+
+/* --------------------------------------------------------------------
+   1. CONFIGURAÇÃO GERAL
+   -------------------------------------------------------------------- */
+const STORAGE_KEY = 'sst_vencimentos_v1';
+
+// Tipos de treinamento/documento padrão exigidos pelo escopo do sistema,
+// com validade sugerida em meses (ajustável pelo usuário a cada registro
+// conforme a política interna da empresa / norma aplicável).
+const TIPOS_PADRAO = [
+  { nome:'ASO Admissional', meses:12 },
+  { nome:'ASO Periódico', meses:12 },
+  { nome:'ASO Retorno ao Trabalho', meses:12 },
+  { nome:'ASO Mudança de Função', meses:12 },
+  { nome:'ASO Demissional', meses:0 },
+  { nome:'Integração', meses:12 },
+  { nome:'NR-01', meses:12 },
+  { nome:'NR-05', meses:12 },
+  { nome:'NR-06', meses:12 },
+  { nome:'NR-10', meses:24 },
+  { nome:'NR-11', meses:12 },
+  { nome:'NR-12', meses:12 },
+  { nome:'NR-18', meses:12 },
+  { nome:'NR-20', meses:12 },
+  { nome:'NR-23', meses:12 },
+  { nome:'NR-33', meses:12 },
+  { nome:'NR-35', meses:24 },
+  { nome:'Primeiros Socorros', meses:12 },
+  { nome:'Brigada de Incêndio', meses:12 },
+  { nome:'Operador de Empilhadeira', meses:12 },
+  { nome:'Plataforma Elevatória (PTA)', meses:12 },
+  { nome:'Ponte Rolante', meses:12 },
+  { nome:'Espaço Confinado', meses:12 },
+  { nome:'Trabalho em Altura', meses:24 },
+];
+
+// Dicionário de sinônimos para reconhecimento inteligente de colunas ao importar planilhas.
+const DICIONARIO_CAMPOS = {
+  nome:            ['nome','colaborador','funcionario','funcionário','empregado','nome completo','nome do colaborador','nome funcionario'],
+  matricula:       ['matricula','matrícula','registro','codigo','código','matricula colaborador','cod colaborador','id colaborador','chapa'],
+  cpf:             ['cpf','cpf colaborador','documento cpf'],
+  empresa:         ['empresa','filial','razao social','razão social','empregador'],
+  unidade:         ['unidade','local','obra','site'],
+  cliente:         ['cliente','tomador','contratante','tomador de servico','tomador de serviço'],
+  contrato:        ['contrato','n contrato','numero contrato','número contrato','nº contrato','cod contrato'],
+  centroCusto:     ['centro de custo','centro custo','cc','cod centro custo'],
+  setor:           ['setor','departamento','area','área','divisao','divisão'],
+  cargo:           ['cargo','funcao','função','ocupacao','ocupação','posto'],
+  gestor:          ['gestor','supervisor','responsavel','responsável','lider','líder','coordenador'],
+  tipoTreinamento: ['tipo de treinamento','treinamento','curso','tipo','documento','tipo documento','tipo de documento','norma','nr'],
+  numeroCertificado: ['numero do certificado','número do certificado','numero certificado','nº certificado','n certificado','certificado'],
+  dataRealizacao:  ['data de realizacao','data de realização','data realizacao','data do curso','data inicio','data início','data emissao','data emissão','data realizacao treinamento','data'],
+  dataVencimento:  ['data de vencimento','vencimento','validade','data final','data limite','data expiracao','data expiração','data vencimento','proximo vencimento','próximo vencimento'],
+  validadeMeses:   ['validade em meses','validade meses','meses validade','periodicidade','periodicidade meses'],
+  situacao:        ['situacao','situação','status'],
+  observacoes:     ['observacoes','observações','obs','notas','comentarios','comentários'],
+};
+
+/* --------------------------------------------------------------------
+   2. ESTADO GLOBAL
+   -------------------------------------------------------------------- */
+let state = {
+  records: [],            // registros de documentos/treinamentos
+  customTypes: [],        // tipos de treinamento cadastrados pelo usuário
+  saudeRegistros: [],      // registros de Saúde/INSS (SESMT): afastamentos, CAT, benefícios, restrições
+  view: 'dashboard',
+  search: '',
+  sortKey: 'nome',
+  sortDir: 1,
+  page: 1,
+  pageSize: 25,
+  importRows: [],          // linhas cruas lidas do arquivo importado
+  importHeaders: [],        // cabeçalhos originais do arquivo importado
+  importMapping: {},        // mapeamento coluna-original -> campo-do-sistema
+};
+
+let charts = {}; // instâncias Chart.js ativas, por id de canvas
+
+// Rótulos e ícones dos tipos de registro de Saúde/INSS (SESMT).
+const SAUDE_TIPOS = {
+  afastamento: { label:'Afastamento/Atestado', icone:'fa-file-waveform' },
+  cat:         { label:'CAT', icone:'fa-truck-medical' },
+  beneficio:   { label:'Benefício INSS', icone:'fa-hand-holding-medical' },
+  restricao:   { label:'Restrição/Readaptação', icone:'fa-person-walking-arrow-loop-left' },
+};
+
+/* --------------------------------------------------------------------
+   3. PERSISTÊNCIA (localStorage)
+   -------------------------------------------------------------------- */
+function salvarStorage(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      records: state.records,
+      customTypes: state.customTypes,
+      saudeRegistros: state.saudeRegistros,
+    }));
+    return true;
+  }catch(e){
+    console.warn('Não foi possível salvar no armazenamento local:', e);
+    showToast('Não foi possível salvar: o armazenamento local do navegador está cheio ou indisponível. Remova anexos grandes ou libere espaço e tente novamente.', 'erro');
+    return false;
+  }
+}
+
+function carregarStorage(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const data = JSON.parse(raw);
+      state.records = Array.isArray(data.records) ? data.records : [];
+      state.customTypes = Array.isArray(data.customTypes) ? data.customTypes : [];
+      state.saudeRegistros = Array.isArray(data.saudeRegistros) ? data.saudeRegistros : [];
+    }
+  }catch(e){ console.warn('Não foi possível carregar dados salvos:', e); }
+  // Primeira execução: semeia o catálogo de tipos com os padrões, para que
+  // todos (padrão e customizados) fiquem editáveis/renomeáveis/excluíveis
+  // igualmente a partir de Configurações.
+  if(!state.customTypes.length){
+    state.customTypes = JSON.parse(JSON.stringify(TIPOS_PADRAO));
+    salvarStorage();
+  }
+}
+
+/* --------------------------------------------------------------------
+   4. UTILITÁRIOS
+   -------------------------------------------------------------------- */
+function gerarId(){ return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+
+function normalizarTexto(txt){
+  return String(txt || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // remove acentos
+    .replace(/[_\-]/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+
+// Converte número de série do Excel para objeto Date (data local, meio-dia
+// UTC como referência para nunca "escorregar" um dia por causa do fuso horário).
+function excelSerialParaData(serial){
+  const utcDias = Math.floor(serial - 25569);
+  const utcValor = utcDias * 86400;
+  const d = new Date(utcValor * 1000);
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+// Interpreta uma string "YYYY-MM-DD" como data LOCAL (não UTC), evitando o
+// deslocamento de 1 dia que "new Date('YYYY-MM-DD')" causa em fusos negativos
+// (ex.: Brasil, UTC-3), onde a string é interpretada como meia-noite UTC.
+function parseISOLocal(iso){
+  if(!iso) return null;
+  const m = String(iso).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(!m) return null;
+  const d = new Date(parseInt(m[1]), parseInt(m[2])-1, parseInt(m[3]));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Interpreta datas em múltiplos formatos (serial excel, dd/mm/aaaa, aaaa-mm-dd, etc).
+function parseDataFlexivel(valor){
+  if(valor === null || valor === undefined || valor === '') return null;
+  if(typeof valor === 'number' && !isNaN(valor)) return excelSerialParaData(valor);
+  const s = String(valor).trim();
+  let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if(m){
+    let [ , dd, mm, yy ] = m;
+    if(yy.length === 2) yy = '20' + yy;
+    const d = new Date(parseInt(yy), parseInt(mm)-1, parseInt(dd));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m){
+    const [ , yy, mm, dd ] = m;
+    const d = new Date(parseInt(yy), parseInt(mm)-1, parseInt(dd));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const tentativa = new Date(s);
+  return isNaN(tentativa.getTime()) ? null : tentativa;
+}
+
+function formatarDataISO(date){
+  if(!date) return '';
+  const y = date.getFullYear(), m = String(date.getMonth()+1).padStart(2,'0'), d = String(date.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatarDataBR(isoOuDate){
+  if(!isoOuDate) return '—';
+  const d = (isoOuDate instanceof Date) ? isoOuDate : parseDataFlexivel(isoOuDate);
+  if(!d) return '—';
+  return d.toLocaleDateString('pt-BR');
+}
+
+function somarMeses(date, meses){
+  const d = new Date(date.getFullYear(), date.getMonth() + parseInt(meses||0), date.getDate());
+  return d;
+}
+
+function hojeSemHora(){ const h = new Date(); h.setHours(0,0,0,0); return h; }
+
+function diffDias(dataVenc){
+  const venc = parseISOLocal(dataVenc);
+  if(!venc) return NaN;
+  venc.setHours(0,0,0,0);
+  return Math.round((venc - hojeSemHora()) / 86400000);
+}
+
+/* --------------------------------------------------------------------
+   5. CLASSIFICAÇÃO AUTOMÁTICA DE SITUAÇÃO
+   -------------------------------------------------------------------- */
+// Calcula, para um registro, os dias restantes/atraso e a classificação
+// visual (verde/amarelo/laranja/vermelho/cinza). Situações manuais
+// (Dispensado, Não aplicável, Cancelado) sobrepõem o cálculo automático.
+function calcularSituacao(registro){
+  if(registro.situacaoManual){
+    return { cor:'cinza', label:registro.situacaoManual, diasRestantes:null, diasAtraso:null, vencido:false, manual:true };
+  }
+  if(!registro.dataVencimento){
+    return { cor:'cinza', label:'Sem data', diasRestantes:null, diasAtraso:null, vencido:false, manual:false };
+  }
+  const dias = diffDias(registro.dataVencimento);
+  if(dias < 0){
+    return { cor:'cinza', label:'Vencido', diasRestantes:dias, diasAtraso:Math.abs(dias), vencido:true, manual:false };
+  }
+  if(dias < 15)  return { cor:'vermelho', label:`Vence em ${dias}d`, diasRestantes:dias, diasAtraso:0, vencido:false, manual:false };
+  if(dias <= 30) return { cor:'laranja',  label:`Vence em ${dias}d`, diasRestantes:dias, diasAtraso:0, vencido:false, manual:false };
+  if(dias <= 60) return { cor:'amarelo',  label:`Vence em ${dias}d`, diasRestantes:dias, diasAtraso:0, vencido:false, manual:false };
+  return { cor:'verde', label:`Vence em ${dias}d`, diasRestantes:dias, diasAtraso:0, vencido:false, manual:false };
+}
+
+const COR_LABEL = { verde:'Verde', amarelo:'Amarelo', laranja:'Laranja', vermelho:'Vermelho', cinza:'Vencido/Outro' };
+
+/* --------------------------------------------------------------------
+   6. TIPOS DE TREINAMENTO
+   Todo o catálogo (padrão + criados pelo usuário) vive em state.customTypes,
+   totalmente editável em Configurações → Tipos de treinamento.
+   -------------------------------------------------------------------- */
+function listaTipos(){
+  return state.customTypes;
+}
+
+function validadePadraoPorTipo(nomeTipo){
+  const t = listaTipos().find(t => t.nome === nomeTipo);
+  return t ? t.meses : 12;
+}
+
+/* --------------------------------------------------------------------
+   7. NAVEGAÇÃO ENTRE VIEWS
+   -------------------------------------------------------------------- */
+function abrirSidebarMobile(){
+  document.getElementById('sidebar').classList.remove('-translate-x-full');
+  document.getElementById('sidebar-overlay').classList.remove('hidden');
+}
+function fecharSidebarMobile(){
+  document.getElementById('sidebar').classList.add('-translate-x-full');
+  document.getElementById('sidebar-overlay').classList.add('hidden');
+}
+
+const SIDEBAR_COLLAPSE_KEY = 'sst_vencimentos_sidebar_collapsed';
+function alternarSidebarRecolhida(){
+  const sb = document.getElementById('sidebar');
+  const recolhida = sb.classList.toggle('sidebar-collapsed');
+  sb.classList.toggle('w-60', !recolhida);
+  sb.classList.toggle('w-16', recolhida);
+  localStorage.setItem(SIDEBAR_COLLAPSE_KEY, recolhida ? '1' : '0');
+}
+function carregarEstadoSidebar(){
+  if(localStorage.getItem(SIDEBAR_COLLAPSE_KEY) !== '1') return;
+  const sb = document.getElementById('sidebar');
+  sb.classList.add('sidebar-collapsed');
+  sb.classList.remove('w-60');
+  sb.classList.add('w-16');
+}
+
+function goToView(view){
+  fecharSidebarMobile();
+  state.view = view;
+  document.querySelectorAll('.nav-item[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === view));
+  ['dashboard','registros','alertas','saude','configuracoes'].forEach(v => {
+    document.getElementById('view-'+v).classList.toggle('hidden', v !== view);
+  });
+  const titles = {
+    dashboard: ['Dashboard Geral','Visão consolidada dos vencimentos de documentos obrigatórios de SST'],
+    registros: ['Registros', 'Consulte, filtre, edite e exclua os documentos cadastrados'],
+    alertas:   ['Alertas Inteligentes', 'Documentos vencidos e próximos do vencimento, por urgência'],
+    saude:     ['Saúde / INSS (SESMT)', 'Afastamentos, CAT, benefícios previdenciários e restrições/readaptação'],
+    configuracoes: ['Configurações', 'Identidade visual, aparência, tipos de treinamento, alertas e backup'],
+  };
+  document.getElementById('view-title').textContent = titles[view][0];
+  document.getElementById('view-subtitle').textContent = titles[view][1];
+  if(view === 'configuracoes'){ popularFormularioConfig(); renderTiposConfigLista(); }
+  renderAll();
+}
+
+function onGlobalSearch(){
+  state.search = document.getElementById('global-search').value;
+  state.page = 1;
+  if(state.view !== 'registros') goToView('registros'); else renderTable();
+}
+
+// Atalhos de navegação usados pelos cards de KPI do Dashboard (agora clicáveis):
+// levam direto para Registros (opcionalmente já filtrado por tipo/situação) ou Alertas.
+function irParaRegistros(tipo, situacao){
+  goToView('registros');
+  const selTipo = document.getElementById('f-tipo');
+  const selSit = document.getElementById('f-situacao');
+  if(selTipo) selTipo.value = tipo || '';
+  if(selSit) selSit.value = situacao || '';
+  renderTable();
+}
+function irParaAlertas(){ goToView('alertas'); }
+
+/* --------------------------------------------------------------------
+   8. RENDER PRINCIPAL (chamado sempre que os dados mudam)
+   -------------------------------------------------------------------- */
+function renderAll(){
+  renderSidebarCounts();
+  if(state.view === 'dashboard') renderDashboard();
+  if(state.view === 'registros'){ popularFiltros(); renderTable(); }
+  if(state.view === 'alertas') renderAlertas();
+  if(state.view === 'saude') renderSaude();
+}
+
+// "Achata" a estrutura colaborador -> treinamentos[] em uma lista de linhas
+// (uma linha por treinamento/documento), mantendo os dados do colaborador
+// em cada linha. Toda a tabela, dashboard, alertas e exportações usam esta
+// visão achatada; o cadastro/edição trabalha com a estrutura aninhada.
+function registrosCalculados(){
+  const linhas = [];
+  state.records.forEach(c => {
+    (c.treinamentos || []).forEach(t => {
+      linhas.push({
+        _colaboradorId: c.id,
+        _treinamentoId: t.id,
+        nome: c.nome, matricula: c.matricula, cpf: c.cpf, empresa: c.empresa, unidade: c.unidade,
+        cliente: c.cliente, contrato: c.contrato, centroCusto: c.centroCusto, setor: c.setor,
+        cargo: c.cargo, gestor: c.gestor,
+        tipoTreinamento: t.tipoTreinamento, numeroCertificado: t.numeroCertificado,
+        dataRealizacao: t.dataRealizacao, dataVencimento: t.dataVencimento, validadeMeses: t.validadeMeses,
+        situacaoManual: t.situacaoManual, observacoes: t.observacoes,
+        _situacao: calcularSituacao(t),
+      });
+    });
+  });
+  return linhas;
+}
+
+function totalColaboradores(){
+  return state.records.filter(c => (c.treinamentos||[]).length > 0).length;
+}
+
+function renderSidebarCounts(){
+  const calc = registrosCalculados();
+  document.getElementById('nav-count-registros').textContent = calc.length;
+  const vencidos = calc.filter(r => r._situacao.vencido).length;
+  const badge = document.getElementById('nav-count-alertas');
+  badge.textContent = vencidos;
+  badge.style.display = vencidos > 0 ? 'inline-flex' : 'none';
+
+  const abertosSaude = (state.saudeRegistros||[]).filter(r => calcularSituacaoSaude(r).aberto).length;
+  const badgeSaude = document.getElementById('nav-count-saude');
+  badgeSaude.textContent = abertosSaude;
+  badgeSaude.style.display = abertosSaude > 0 ? 'inline-flex' : 'none';
+}
+
+/* --------------------------------------------------------------------
+   9. DASHBOARD — KPIs, percentuais e gráficos
+   -------------------------------------------------------------------- */
+function renderDashboard(){
+  const calc = registrosCalculados();
+  const total = calc.length;
+  const totalColabs = totalColaboradores();
+  document.getElementById('dashboard-empty').classList.toggle('hidden', totalColabs > 0);
+  document.getElementById('dashboard-content').classList.toggle('hidden', totalColabs === 0);
+  if(totalColabs === 0) return;
+  const vencidos = calc.filter(r => r._situacao.vencido);
+  const validos = calc.filter(r => !r._situacao.vencido);
+  const em90 = calc.filter(r => !r._situacao.vencido && r._situacao.diasRestantes !== null && r._situacao.diasRestantes <= 90);
+  const em60 = calc.filter(r => !r._situacao.vencido && r._situacao.diasRestantes !== null && r._situacao.diasRestantes <= 60);
+  const em30 = calc.filter(r => !r._situacao.vencido && r._situacao.diasRestantes !== null && r._situacao.diasRestantes <= 30);
+  const em15 = calc.filter(r => !r._situacao.vencido && r._situacao.diasRestantes !== null && r._situacao.diasRestantes <= 15);
+  const em7  = calc.filter(r => !r._situacao.vencido && r._situacao.diasRestantes !== null && r._situacao.diasRestantes <= 7);
+  const hoje = calc.filter(r => !r._situacao.vencido && r._situacao.diasRestantes === 0);
+  const conformidade = total ? Math.round(validos.length/total*100) : 0;
+  const asoVencidos = vencidos.filter(r => (r.tipoTreinamento||'').startsWith('ASO'));
+  const integVencidas = vencidos.filter(r => (r.tipoTreinamento||'') === 'Integração');
+  const nrVencidas = vencidos.filter(r => /^NR-/.test(r.tipoTreinamento||''));
+  const treinVencidos = vencidos.filter(r => !(r.tipoTreinamento||'').startsWith('ASO') && (r.tipoTreinamento||'') !== 'Integração' && !/^NR-/.test(r.tipoTreinamento||''));
+
+  document.getElementById('critical-banner').classList.toggle('hidden', vencidos.length === 0);
+  document.getElementById('critical-count').textContent = vencidos.length;
+
+  const abertosSaudeDash = (state.saudeRegistros||[]).filter(r => calcularSituacaoSaude(r).aberto).length;
+  document.getElementById('saude-dashboard-banner').classList.toggle('hidden', abertosSaudeDash === 0 || !state.config.modulos.saude);
+  document.getElementById('saude-dashboard-count').textContent = abertosSaudeDash;
+
+  const cfgA = state.config.alertas;
+  const kpis = [
+    { label:'Colaboradores', value:totalColabs, color:'var(--primary)', ativo:true, onClick:"irParaRegistros()" },
+    { label:'Total de documentos', value:total, color:'var(--ink)', ativo:true, onClick:"irParaRegistros()" },
+    { label:'Documentos válidos', value:validos.length, color:'var(--verde)', ativo:true, onClick:"irParaRegistros()" },
+    { label:'Documentos vencidos', value:vencidos.length, color:'var(--vermelho)', ativo:true, onClick:"irParaAlertas()" },
+    { label:'Conformidade', value:conformidade+'%', color:'var(--verde)', ativo:true, onClick:"irParaRegistros()" },
+    { label:'Vencendo em 90 dias', value:em90.length, color:'var(--verde)', ativo:cfgA.d90, onClick:"irParaAlertas()" },
+    { label:'Vencendo em 60 dias', value:em60.length, color:'var(--amarelo)', ativo:cfgA.d60, onClick:"irParaAlertas()" },
+    { label:'Vencendo em 30 dias', value:em30.length, color:'var(--amarelo)', ativo:cfgA.d30, onClick:"irParaAlertas()" },
+    { label:'Vencendo em 15 dias', value:em15.length, color:'var(--laranja)', ativo:cfgA.d15, onClick:"irParaAlertas()" },
+    { label:'Vencendo em 7 dias', value:em7.length, color:'var(--vermelho)', ativo:cfgA.d7, onClick:"irParaAlertas()" },
+    { label:'Vencendo hoje', value:hoje.length, color:'var(--vermelho)', ativo:cfgA.hoje, onClick:"irParaAlertas()" },
+    { label:'ASOs vencidos', value:asoVencidos.length, color:'var(--cinza)', ativo:true, onClick:"irParaRegistros('', 'cinza')" },
+    { label:'Integrações vencidas', value:integVencidas.length, color:'var(--cinza)', ativo:true, onClick:"irParaRegistros('Integração', 'cinza')" },
+    { label:'NRs vencidas', value:nrVencidas.length, color:'var(--cinza)', ativo:true, onClick:"irParaRegistros('', 'cinza')" },
+    { label:'Treinamentos vencidos', value:treinVencidos.length, color:'var(--cinza)', ativo:true, onClick:"irParaRegistros('', 'cinza')" },
+  ];
+  document.getElementById('kpi-grid').innerHTML = kpis.filter(k => k.ativo).map(k => `
+    <button type="button" class="kpi-card" onclick="${k.onClick}">
+      <span class="kpi-value tabular" style="color:${k.color}">${k.value}</span>
+      <span class="kpi-label">${k.label}</span>
+      <span class="kpi-card-hint">Ver detalhes <i class="fa-solid fa-arrow-right"></i></span>
+    </button>`).join('');
+
+  const pctValidos = total ? Math.round(validos.length/total*100) : 0;
+  const pctVencidos = total ? Math.round(vencidos.length/total*100) : 0;
+  const pctProximos = total ? Math.round(em30.length/total*100) : 0;
+  document.getElementById('pct-validos').textContent = pctValidos + '%';
+  document.getElementById('pct-vencidos').textContent = pctVencidos + '%';
+  document.getElementById('pct-proximos').textContent = pctProximos + '%';
+  document.getElementById('bar-validos').style.width = pctValidos + '%';
+  document.getElementById('bar-vencidos').style.width = pctVencidos + '%';
+  document.getElementById('bar-proximos').style.width = pctProximos + '%';
+
+  renderGraficos(calc);
+}
+
+function contarPor(lista, campo){
+  const map = {};
+  lista.forEach(r => {
+    const chave = (r[campo] && String(r[campo]).trim()) || 'Não informado';
+    map[chave] = (map[chave] || 0) + 1;
+  });
+  return map;
+}
+
+function destruirChart(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
+
+let PALETA_GRAFICOS = ['#1E4FD6','#FFB100','#158A45','#C81E3A','#7C3AED','#0E9AA7','#C2540A','#565F73','#DB2777','#0D9488'];
+
+function renderBarChart(canvasId, mapaDados, horizontal){
+  destruirChart(canvasId);
+  const entradas = Object.entries(mapaDados).sort((a,b) => b[1]-a[1]).slice(0,12);
+  const ctx = document.getElementById(canvasId);
+  if(!ctx) return;
+  charts[canvasId] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: entradas.map(e => e[0]),
+      datasets: [{ data: entradas.map(e => e[1]), backgroundColor: '#1E4FD6', borderRadius:4, maxBarThickness:28 }]
+    },
+    options: {
+      indexAxis: horizontal ? 'y' : 'x',
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        x:{ grid:{ display:!horizontal }, ticks:{ font:{size:10}, precision:0 } },
+        y:{ grid:{ display:horizontal }, ticks:{ font:{size:10} } }
+      }
+    }
+  });
+}
+
+function renderDoughnutChart(canvasId, mapaDados){
+  destruirChart(canvasId);
+  const entradas = Object.entries(mapaDados).sort((a,b) => b[1]-a[1]);
+  const ctx = document.getElementById(canvasId);
+  if(!ctx) return;
+  charts[canvasId] = new Chart(ctx, {
+    type:'doughnut',
+    data:{ labels: entradas.map(e=>e[0]), datasets:[{ data: entradas.map(e=>e[1]), backgroundColor: PALETA_GRAFICOS, borderWidth:2, borderColor:'#fff' }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:9}, boxWidth:10 } } } }
+  });
+}
+
+function chaveMes(date){ return date.toLocaleDateString('pt-BR', { month:'short', year:'numeric' }); }
+
+function renderGraficos(calc){
+  // Ajusta as cores padrão do Chart.js conforme o tema ativo (claro/escuro).
+  const temaEscuro = document.documentElement.getAttribute('data-theme') === 'dark';
+  Chart.defaults.color = temaEscuro ? '#9CA3BE' : '#5B6478';
+  Chart.defaults.borderColor = temaEscuro ? '#2A3149' : '#E1E6F0';
+
+  // Colaboradores com maior quantidade de documentos vencidos (top 10)
+  const vencidosPorColaborador = {};
+  calc.filter(r => r._situacao.vencido).forEach(r => {
+    const chave = `${r.nome || 'Não informado'} (${r.matricula || '—'})`;
+    vencidosPorColaborador[chave] = (vencidosPorColaborador[chave] || 0) + 1;
+  });
+  renderBarChart('chart-top-vencidos', vencidosPorColaborador, true);
+
+  // Vencimentos por mês (todas as datas de vencimento, agrupadas)
+  const porMes = {};
+  calc.forEach(r => {
+    if(!r.dataVencimento) return;
+    const d = parseDataFlexivel(r.dataVencimento);
+    if(!d) return;
+    const k = chaveMes(d);
+    porMes[k] = (porMes[k]||0) + 1;
+  });
+  renderBarChart('chart-mes', porMes, false);
+
+  renderBarChart('chart-empresa', contarPor(calc, 'empresa'), true);
+  renderBarChart('chart-unidade', contarPor(calc, 'unidade'), true);
+  renderBarChart('chart-cliente', contarPor(calc, 'cliente'), true);
+  renderBarChart('chart-setor', contarPor(calc, 'setor'), true);
+  renderBarChart('chart-gestor', contarPor(calc, 'gestor'), true);
+  renderDoughnutChart('chart-tipos', contarPor(calc, 'tipoTreinamento'));
+
+  // Evolução mensal: janela de -6 a +6 meses a partir de hoje
+  const hoje = new Date();
+  const labels = [], dados = [];
+  for(let i=-6;i<=6;i++){
+    const d = new Date(hoje.getFullYear(), hoje.getMonth()+i, 1);
+    labels.push(chaveMes(d));
+    dados.push(0);
+  }
+  calc.forEach(r => {
+    if(!r.dataVencimento) return;
+    const d = parseDataFlexivel(r.dataVencimento);
+    if(!d) return;
+    const diffMeses = (d.getFullYear()-hoje.getFullYear())*12 + (d.getMonth()-hoje.getMonth());
+    if(diffMeses >= -6 && diffMeses <= 6) dados[diffMeses+6]++;
+  });
+  destruirChart('chart-evolucao');
+  const ctxEvo = document.getElementById('chart-evolucao');
+  if(ctxEvo){
+    charts['chart-evolucao'] = new Chart(ctxEvo, {
+      type:'line',
+      data:{ labels, datasets:[{ data:dados, borderColor:'#1E4FD6', backgroundColor:'rgba(30,79,214,.12)', fill:true, tension:.3, pointRadius:3 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ ticks:{ precision:0, font:{size:10} } }, x:{ ticks:{ font:{size:9} } } } }
+    });
+  }
+}
+
+/* --------------------------------------------------------------------
+   10. FILTROS DA TABELA DE REGISTROS
+   -------------------------------------------------------------------- */
+function valoresUnicos(campo){
+  return [...new Set(state.records.map(r => r[campo]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+}
+
+function popularFiltros(){
+  const mapas = { 'f-empresa':'empresa', 'f-unidade':'unidade', 'f-cliente':'cliente', 'f-setor':'setor', 'f-gestor':'gestor' };
+  Object.entries(mapas).forEach(([selId, campo]) => {
+    const sel = document.getElementById(selId);
+    const atual = sel.value;
+    const primeira = sel.options[0];
+    sel.innerHTML = '';
+    sel.appendChild(primeira);
+    valoresUnicos(campo).forEach(v => {
+      const opt = document.createElement('option'); opt.value = v; opt.textContent = v; sel.appendChild(opt);
+    });
+    sel.value = atual;
+  });
+  const selTipo = document.getElementById('f-tipo');
+  const atualTipo = selTipo.value;
+  selTipo.innerHTML = '<option value="">Mostrar todas</option>';
+  listaTipos().forEach(t => { const opt = document.createElement('option'); opt.value = t.nome; opt.textContent = t.nome; selTipo.appendChild(opt); });
+  selTipo.value = atualTipo;
+
+  // datalists do modal de cadastro (autocomplete)
+  ['empresa','unidade','cliente','contrato','centroCusto','setor','cargo','gestor'].forEach(campo => {
+    const dl = document.getElementById('dl-'+campo);
+    if(dl) dl.innerHTML = valoresUnicos(campo).map(v => `<option value="${escapeHtml(v)}">`).join('');
+  });
+}
+
+function limparFiltros(){
+  ['f-situacao','f-empresa','f-unidade','f-cliente','f-setor','f-gestor','f-tipo'].forEach(id => document.getElementById(id).value = '');
+  state.search = '';
+  document.getElementById('global-search').value = '';
+  renderTable();
+}
+
+function escapeHtml(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Escapa um valor para uso seguro DENTRO de um atributo onclick="..." que passa
+// argumentos entre aspas simples (ex.: onclick="minhaFuncao('${valorEscapado}')").
+// Sem isso, um valor livre (ex.: nome de tipo de treinamento) contendo aspas
+// duplas quebraria o atributo, e aspas simples quebrariam a chamada JS.
+function escapeAtributoOnclick(valor){
+  return String(valor ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/* --------------------------------------------------------------------
+   3b. FEEDBACK PADRONIZADO — toasts, confirmação e prompt em modal
+   Substituem alert()/confirm()/prompt() nativos por componentes no
+   estilo visual do sistema.
+   -------------------------------------------------------------------- */
+function showToast(mensagem, tipo){
+  tipo = tipo || 'info';
+  const icones = { sucesso:'fa-circle-check', erro:'fa-circle-exclamation', aviso:'fa-triangle-exclamation', info:'fa-circle-info' };
+  const cores  = { sucesso:'var(--verde)', erro:'var(--vermelho)', aviso:'var(--amarelo)', info:'var(--primary)' };
+  const cont = document.getElementById('toast-container');
+  if(!cont) return;
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + tipo;
+  el.innerHTML = `<i class="fa-solid ${icones[tipo]||icones.info}" style="color:${cores[tipo]||cores.info}; margin-top:1px;"></i><span>${escapeHtml(mensagem)}</span>`;
+  cont.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('toast-show'));
+  const duracao = tipo === 'erro' ? 6000 : 3300;
+  setTimeout(() => {
+    el.classList.remove('toast-show');
+    setTimeout(() => el.remove(), 250);
+  }, duracao);
+}
+
+// Modal de confirmação genérico (substitui confirm()). Chame com um callback
+// a ser executado somente se o usuário confirmar; opts.confirmLabel e
+// opts.danger controlam o texto/estilo do botão de ação.
+let confirmCallback = null;
+function abrirConfirmacao(titulo, texto, onConfirm, opts){
+  opts = opts || {};
+  confirmCallback = onConfirm;
+  document.getElementById('confirm-titulo').textContent = titulo;
+  document.getElementById('confirm-texto').textContent = texto;
+  const btn = document.getElementById('confirm-delete-btn');
+  btn.textContent = opts.confirmLabel || 'Excluir';
+  btn.className = 'btn flex-1 ' + (opts.danger === false ? 'btn-primary' : 'btn-danger');
+  document.getElementById('modal-confirm').classList.remove('hidden');
+}
+function closeConfirmModal(){ confirmCallback = null; document.getElementById('modal-confirm').classList.add('hidden'); }
+
+// Modal de "novo tipo" (substitui os dois prompt() encadeados de nome+validade).
+let tipoPromptCallback = null;
+function abrirTipoPromptModal(callback){
+  tipoPromptCallback = callback;
+  document.getElementById('tipo-prompt-nome').value = '';
+  document.getElementById('tipo-prompt-meses').value = '12';
+  document.getElementById('modal-tipo-prompt').classList.remove('hidden');
+  setTimeout(() => document.getElementById('tipo-prompt-nome')?.focus(), 60);
+}
+function closeTipoPromptModal(){ tipoPromptCallback = null; document.getElementById('modal-tipo-prompt').classList.add('hidden'); }
+
+// Retorna o treinamento "vigente" de um tipo para um colaborador: quando há
+// mais de uma ocorrência do mesmo tipo (histórico), usa a de vencimento mais recente.
+function treinamentoVigente(colaborador, tipo){
+  const lista = (colaborador.treinamentos || []).filter(t => t.tipoTreinamento === tipo);
+  if(!lista.length) return null;
+  return lista.slice().sort((a,b) => String(b.dataVencimento||'').localeCompare(String(a.dataVencimento||'')))[0];
+}
+
+function valorOrdenacaoColaborador(c, key){
+  if(key === 'nome') return normalizarTexto(c.nome);
+  if(key === 'matricula') return normalizarTexto(c.matricula);
+  const oc = treinamentoVigente(c, key);
+  if(!oc) return 999999999;
+  const sit = calcularSituacao(oc);
+  return (sit.diasRestantes === null || sit.diasRestantes === undefined) ? 999999998 : sit.diasRestantes;
+}
+
+// Filtra e ordena os COLABORADORES (não os treinamentos) para a grade matricial.
+function colaboradoresFiltrados(){
+  let lista = state.records.filter(c => (c.treinamentos||[]).length > 0);
+  const busca = normalizarTexto(state.search);
+  if(busca) lista = lista.filter(c => normalizarTexto(c.nome).includes(busca) || normalizarTexto(c.matricula).includes(busca));
+
+  const fSit = document.getElementById('f-situacao')?.value;
+  const fEmp = document.getElementById('f-empresa')?.value;
+  const fUni = document.getElementById('f-unidade')?.value;
+  const fCli = document.getElementById('f-cliente')?.value;
+  const fSet = document.getElementById('f-setor')?.value;
+  const fGes = document.getElementById('f-gestor')?.value;
+  const fTipo = document.getElementById('f-tipo')?.value;
+
+  if(fEmp) lista = lista.filter(c => c.empresa === fEmp);
+  if(fUni) lista = lista.filter(c => c.unidade === fUni);
+  if(fCli) lista = lista.filter(c => c.cliente === fCli);
+  if(fSet) lista = lista.filter(c => c.setor === fSet);
+  if(fGes) lista = lista.filter(c => c.gestor === fGes);
+  // Quando há uma coluna isolada (fTipo), a situação deve ser avaliada só
+  // sobre aquele tipo — senão o filtro pode divergir do que a grade mostra.
+  if(fSit) lista = lista.filter(c => (c.treinamentos||[]).some(t => (!fTipo || t.tipoTreinamento === fTipo) && calcularSituacao(t).cor === fSit));
+
+  return lista.slice().sort((a,b) => {
+    const va = valorOrdenacaoColaborador(a, state.sortKey);
+    const vb = valorOrdenacaoColaborador(b, state.sortKey);
+    if(va < vb) return -1 * state.sortDir;
+    if(va > vb) return 1 * state.sortDir;
+    return 0;
+  });
+}
+
+function registrosFiltrados(){
+  let calc = registrosCalculados();
+  const busca = normalizarTexto(state.search);
+  if(busca) calc = calc.filter(r => normalizarTexto(r.nome).includes(busca) || normalizarTexto(r.matricula).includes(busca));
+
+  const fSit = document.getElementById('f-situacao')?.value;
+  const fEmp = document.getElementById('f-empresa')?.value;
+  const fUni = document.getElementById('f-unidade')?.value;
+  const fCli = document.getElementById('f-cliente')?.value;
+  const fSet = document.getElementById('f-setor')?.value;
+  const fGes = document.getElementById('f-gestor')?.value;
+  const fTipo = document.getElementById('f-tipo')?.value;
+
+  if(fSit) calc = calc.filter(r => r._situacao.cor === fSit);
+  if(fEmp) calc = calc.filter(r => r.empresa === fEmp);
+  if(fUni) calc = calc.filter(r => r.unidade === fUni);
+  if(fCli) calc = calc.filter(r => r.cliente === fCli);
+  if(fSet) calc = calc.filter(r => r.setor === fSet);
+  if(fGes) calc = calc.filter(r => r.gestor === fGes);
+  if(fTipo) calc = calc.filter(r => r.tipoTreinamento === fTipo);
+  return calc;
+}
+
+/* --------------------------------------------------------------------
+   11. GRADE MATRICIAL DE REGISTROS — colaboradores × tipos de treinamento
+   -------------------------------------------------------------------- */
+function matrixColunas(){
+  const fTipo = document.getElementById('f-tipo')?.value;
+  const todas = listaTipos().map(t => t.nome);
+  return fTipo ? [fTipo] : todas;
+}
+
+function ordenarPor(key){
+  if(state.sortKey === key){ state.sortDir *= -1; } else { state.sortKey = key; state.sortDir = 1; }
+  renderTable();
+}
+function ordenarPorColuna(idx){ ordenarPor(state.gridColunas[idx]); }
+
+function renderMatrixHead(colunas){
+  state.gridColunas = colunas;
+  const seta = (key) => state.sortKey === key ? (state.sortDir === 1 ? ' ▲' : ' ▼') : '';
+  let html = `<th class="matrix-col-fixa" style="min-width:220px;" onclick="ordenarPor('nome')">Colaborador${seta('nome')}</th>`;
+  colunas.forEach((tipo, idx) => {
+    html += `<th style="min-width:128px;" onclick="ordenarPorColuna(${idx})" title="${escapeHtml(tipo)}">${escapeHtml(tipo)}${seta(tipo)}</th>`;
+  });
+  html += `<th class="matrix-add-col no-print"></th>`;
+  document.getElementById('matrix-head-row').innerHTML = html;
+}
+
+function renderMatrixBody(colaboradores, colunas){
+  document.getElementById('matrix-body').innerHTML = colaboradores.map(c => {
+    let linha = `<tr>`;
+    linha += `<td class="matrix-col-fixa">
+      <div class="flex items-center justify-between gap-2">
+        <div class="min-w-0 cursor-pointer" onclick="openRecordModal('${c.id}')" title="Editar dados do colaborador">
+          <p class="font-semibold truncate">${escapeHtml(c.nome)}</p>
+          <p class="text-xs truncate" style="color:var(--ink-soft);">${escapeHtml(c.matricula)} · ${escapeHtml(c.empresa)}</p>
+        </div>
+        <button class="btn btn-ghost !p-1 no-print flex-shrink-0" title="Excluir colaborador" style="color:var(--vermelho);" onclick="pedirExclusaoColaborador('${c.id}')"><i class="fa-solid fa-trash"></i></button>
+      </div>
+    </td>`;
+    colunas.forEach(tipo => {
+      const tipoEscapado = escapeAtributoOnclick(tipo);
+      const oc = treinamentoVigente(c, tipo);
+      if(!oc){
+        linha += `<td><button type="button" class="matrix-cell-btn matrix-cell-empty" onclick="abrirDetalheTreinamento('${c.id}','${tipoEscapado}')" title="Adicionar ${escapeHtml(tipo)}">—<span style="font-size:.62rem;">adicionar</span></button></td>`;
+      } else {
+        const sit = calcularSituacao(oc);
+        const texto = sit.manual ? escapeHtml(sit.label) : formatarDataBR(oc.dataVencimento);
+        linha += `<td><button type="button" class="matrix-cell-btn" onclick="abrirDetalheTreinamento('${c.id}','${tipoEscapado}')">
+          <span class="badge badge-${sit.cor}"><span class="badge-dot" style="background:currentColor;"></span>${texto}</span>
+        </button></td>`;
+      }
+    });
+    linha += `<td class="matrix-add-cell no-print"><button class="btn btn-ghost !p-1.5" title="Adicionar treinamento" onclick="adicionarTreinamentoRapido('${c.id}')"><i class="fa-solid fa-plus"></i></button></td>`;
+    linha += `</tr>`;
+    return linha;
+  }).join('');
+}
+
+function changePage(delta){
+  const total = colaboradoresFiltrados().length;
+  const totalPaginas = Math.max(1, Math.ceil(total / state.pageSize));
+  state.page = Math.min(Math.max(1, state.page + delta), totalPaginas);
+  renderTable();
+}
+
+function renderTable(){
+  const colunas = matrixColunas();
+  renderMatrixHead(colunas);
+
+  const filtrados = colaboradoresFiltrados();
+  const total = filtrados.length;
+  const totalPaginas = Math.max(1, Math.ceil(total / state.pageSize));
+  if(state.page > totalPaginas) state.page = totalPaginas;
+  const inicio = (state.page - 1) * state.pageSize;
+  const pagina = filtrados.slice(inicio, inicio + state.pageSize);
+
+  document.getElementById('reg-count-info').textContent = `${total} colaborador(es) encontrado(s)`;
+  document.getElementById('page-info').textContent = `Página ${state.page} de ${totalPaginas}`;
+  document.getElementById('table-empty').classList.toggle('hidden', total !== 0);
+
+  renderMatrixBody(pagina, colunas);
+}
+
+function adicionarTreinamentoRapido(colaboradorId){
+  openRecordModal(colaboradorId);
+  adicionarTreinamentoRow();
+}
+
+/* --------------------------------------------------------------------
+   11b. MODAL DE DETALHE — edição focada em um único tipo de treinamento,
+   aberto ao clicar em uma célula da grade matricial.
+   -------------------------------------------------------------------- */
+function abrirDetalheTreinamento(colaboradorId, tipo){
+  const c = state.records.find(x => x.id === colaboradorId);
+  if(!c) return;
+  state.detalheColaboradorId = colaboradorId;
+  state.detalheTipo = tipo;
+  const existentes = (c.treinamentos || []).filter(t => t.tipoTreinamento === tipo);
+  state.modalTreinamentos = existentes.length
+    ? JSON.parse(JSON.stringify(existentes))
+    : [ { ...novoTreinamentoVazio(), tipoTreinamento: tipo } ];
+  state.modalContainerId = 'detalhe-treinamentos-list';
+  document.getElementById('detalhe-titulo').textContent = tipo;
+  document.getElementById('detalhe-subtitulo').textContent = `${c.nome} · Matrícula ${c.matricula}`;
+  renderModalTreinamentos();
+  document.getElementById('modal-detalhe').classList.remove('hidden');
+}
+
+function closeDetalheModal(){ document.getElementById('modal-detalhe').classList.add('hidden'); }
+
+function adicionarOcorrenciaDetalhe(){
+  state.modalTreinamentos.push({ ...novoTreinamentoVazio(), tipoTreinamento: state.detalheTipo });
+  renderModalTreinamentos();
+}
+
+function salvarDetalhe(){
+  sincronizarTreinamentosComDOM();
+  for(const item of state.modalTreinamentos){
+    if(!item.tipoTreinamento || !item.dataRealizacao || !item.dataVencimento){
+      showToast('Preencha data de realização e data de vencimento em todas as ocorrências (ou remova as incompletas).', 'erro');
+      return;
+    }
+  }
+  const c = state.records.find(x => x.id === state.detalheColaboradorId);
+  if(!c) return;
+  const outros = (c.treinamentos || []).filter(t => t.tipoTreinamento !== state.detalheTipo);
+  const editados = state.modalTreinamentos.map(t => ({
+    id: t.id || gerarId(),
+    tipoTreinamento: t.tipoTreinamento,
+    numeroCertificado: (t.numeroCertificado||'').trim(),
+    dataRealizacao: t.dataRealizacao,
+    validadeMeses: parseInt(t.validadeMeses) || 0,
+    autoVencimento: !!t.autoVencimento,
+    dataVencimento: t.dataVencimento,
+    situacaoManual: t.situacaoManual || '',
+    observacoes: (t.observacoes||'').trim(),
+    certificadoArquivo: t.certificadoArquivo || null,
+  }));
+  c.treinamentos = [...outros, ...editados];
+  if(c.treinamentos.length === 0) state.records = state.records.filter(x => x.id !== c.id);
+  if(salvarStorage()) showToast('Treinamento salvo com sucesso.', 'sucesso');
+  closeDetalheModal();
+  renderAll();
+}
+
+
+/* --------------------------------------------------------------------
+   12. ALERTAS INTELIGENTES
+   -------------------------------------------------------------------- */
+function renderAlertas(){
+  const calc = registrosCalculados().filter(r => !r._situacao.manual && r.dataVencimento);
+  const cfgA = state.config.alertas;
+  const buckets = [
+    { titulo:'⚫ Vencidos', cor:'cinza', filtro: r => r._situacao.vencido, vazio:'Nenhum documento vencido. 🎉', ativo:true },
+    { titulo:'🔴 Vencendo hoje', cor:'vermelho', filtro: r => !r._situacao.vencido && r._situacao.diasRestantes === 0, vazio:'Nenhum vencimento para hoje.', ativo: cfgA.hoje },
+    { titulo:'🔴 Vencendo em até 7 dias', cor:'vermelho', filtro: r => !r._situacao.vencido && r._situacao.diasRestantes > 0 && r._situacao.diasRestantes <= 7, vazio:'Nenhum vencimento nos próximos 7 dias.', ativo: cfgA.d7 },
+    { titulo:'🟠 Vencendo em até 15 dias', cor:'laranja', filtro: r => !r._situacao.vencido && r._situacao.diasRestantes > 7 && r._situacao.diasRestantes <= 15, vazio:'Nenhum vencimento entre 8 e 15 dias.', ativo: cfgA.d15 },
+    { titulo:'🟡 Vencendo em até 30 dias', cor:'amarelo', filtro: r => !r._situacao.vencido && r._situacao.diasRestantes > 15 && r._situacao.diasRestantes <= 30, vazio:'Nenhum vencimento entre 16 e 30 dias.', ativo: cfgA.d30 },
+    { titulo:'🟢 Vencendo em até 60 dias', cor:'verde', filtro: r => !r._situacao.vencido && r._situacao.diasRestantes > 30 && r._situacao.diasRestantes <= 60, vazio:'Nenhum vencimento entre 31 e 60 dias.', ativo: cfgA.d60 },
+    { titulo:'🟢 Vencendo em até 90 dias', cor:'verde', filtro: r => !r._situacao.vencido && r._situacao.diasRestantes > 60 && r._situacao.diasRestantes <= 90, vazio:'Nenhum vencimento entre 61 e 90 dias.', ativo: cfgA.d90 },
+  ];
+
+  if(!buckets.some(b => b.ativo)){
+    document.getElementById('alertas-container').innerHTML = `<p class="text-xs italic px-1" style="color:var(--ink-soft);">Todas as janelas de alerta estão desabilitadas em Configurações → Alertas.</p>`;
+    return;
+  }
+
+  document.getElementById('alertas-container').innerHTML = buckets.filter(b => b.ativo).map(b => {
+    const lista = calc.filter(b.filtro).sort((a,b2) => a._situacao.diasRestantes - b2._situacao.diasRestantes);
+    return `<div>
+      <div class="flex items-center gap-2 mb-2">
+        <h3 class="font-extrabold text-sm">${b.titulo}</h3>
+        <span class="tag-pill">${lista.length} registro(s)</span>
+      </div>
+      ${lista.length === 0
+        ? `<p class="text-xs italic px-1" style="color:var(--ink-soft);">${b.vazio}</p>`
+        : `<div class="space-y-2">${lista.map(r => `
+            <div class="alert-card" style="border-left-color:var(--${b.cor});">
+              <div class="min-w-0">
+                <p class="font-semibold text-sm truncate">${escapeHtml(r.nome)} <span class="font-normal text-xs" style="color:var(--ink-soft);">— ${escapeHtml(r.matricula)}</span></p>
+                <p class="text-xs" style="color:var(--ink-soft);">${escapeHtml(r.tipoTreinamento)} · ${escapeHtml(r.empresa)} / ${escapeHtml(r.unidade)} · Vencimento: ${formatarDataBR(r.dataVencimento)}</p>
+              </div>
+              <div class="flex items-center gap-2 flex-shrink-0">
+                <span class="badge badge-${r._situacao.cor}">${r._situacao.vencido ? r._situacao.diasAtraso+'d atraso' : r._situacao.diasRestantes+'d restantes'}</span>
+                <button class="btn btn-outline !py-1.5" onclick="openRecordModal('${r._colaboradorId}')">Ver</button>
+              </div>
+            </div>`).join('')}</div>`
+      }
+    </div>`;
+  }).join('');
+}
+
+/* --------------------------------------------------------------------
+   13. MODAL DE CADASTRO / EDIÇÃO — CRUD (colaborador + N treinamentos)
+   -------------------------------------------------------------------- */
+// Lista de treinamentos sendo editada enquanto o modal está aberto, e o id do
+// container onde ela deve ser renderizada (modal de colaborador completo ou
+// modal de detalhe de um único tipo, aberto a partir da célula da grade).
+state.modalTreinamentos = [];
+state.modalContainerId = 'r-treinamentos-list';
+
+function opcoesTipoTreinamento(selecionado){
+  return listaTipos().map(t => `<option value="${escapeHtml(t.nome)}" ${t.nome===selecionado?'selected':''}>${escapeHtml(t.nome)}</option>`).join('')
+    + `<option value="__novo__">+ Adicionar novo tipo…</option>`;
+}
+
+function badgePreviewTreinamento(item){
+  if(item.situacaoManual) return `<span class="badge badge-cinza">${escapeHtml(item.situacaoManual)}</span>`;
+  if(!item.dataVencimento) return '<span class="text-xs" style="color:var(--ink-faint);">Informe a data de vencimento</span>';
+  const sit = calcularSituacao(item);
+  const texto = sit.vencido ? `${sit.diasAtraso} dia(s) em atraso` : sit.label;
+  return `<span class="badge badge-${sit.cor}"><span class="badge-dot" style="background:currentColor;"></span>${texto}</span>`;
+}
+
+function linhaTreinamentoHTML(item, idx){
+  return `<div class="rounded-lg p-3 relative" style="border:1px solid var(--border); background:var(--surface-2);">
+    <button type="button" class="btn btn-ghost !p-1.5 absolute top-2 right-2" style="color:var(--vermelho);" title="Remover treinamento" onclick="removerTreinamentoRow(${idx})"><i class="fa-solid fa-trash"></i></button>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 pr-8">
+      <div><label class="field-label">Tipo *</label><select required id="row-tipo-${idx}" class="field-select" onchange="onRowTipoChange(${idx}, this)">${opcoesTipoTreinamento(item.tipoTreinamento)}</select></div>
+      <div><label class="field-label">Nº certificado</label><input id="row-cert-${idx}" class="field-input" value="${escapeHtml(item.numeroCertificado||'')}" oninput="atualizarTreinamentoRow(${idx},'numeroCertificado',this.value)"></div>
+      <div><label class="field-label">Data de realização *</label><input required type="date" id="row-realizacao-${idx}" class="field-input" value="${item.dataRealizacao||''}" onchange="atualizarTreinamentoRow(${idx},'dataRealizacao',this.value); recalcVencimentoRow(${idx});"></div>
+      <div><label class="field-label">Validade (meses) *</label><input required type="number" min="0" id="row-validade-${idx}" class="field-input" value="${item.validadeMeses ?? 12}" onchange="atualizarTreinamentoRow(${idx},'validadeMeses',this.value); recalcVencimentoRow(${idx});"></div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+      <div>
+        <label class="field-label">Data de vencimento *</label>
+        <input required type="date" id="row-venc-${idx}" class="field-input" value="${item.dataVencimento||''}" ${item.autoVencimento?'readonly':''} style="${item.autoVencimento?'background:var(--surface-2);':''}" onchange="atualizarTreinamentoRow(${idx},'dataVencimento',this.value); atualizarPreviewRow(${idx});">
+        <label class="flex items-center gap-1.5 mt-1 text-xs" style="color:var(--ink-soft);"><input type="checkbox" id="row-auto-${idx}" ${item.autoVencimento?'checked':''} onchange="atualizarTreinamentoRow(${idx},'autoVencimento',this.checked); recalcVencimentoRow(${idx});"> Calcular automaticamente</label>
+      </div>
+      <div>
+        <label class="field-label">Situação</label>
+        <select id="row-situacao-${idx}" class="field-select" onchange="atualizarTreinamentoRow(${idx},'situacaoManual',this.value); atualizarPreviewRow(${idx});">
+          <option value="" ${!item.situacaoManual?'selected':''}>Automática (calculada pelo sistema)</option>
+          <option value="Dispensado" ${item.situacaoManual==='Dispensado'?'selected':''}>Dispensado</option>
+          <option value="Não aplicável" ${item.situacaoManual==='Não aplicável'?'selected':''}>Não aplicável</option>
+          <option value="Cancelado" ${item.situacaoManual==='Cancelado'?'selected':''}>Cancelado</option>
+        </select>
+      </div>
+      <div class="md:col-span-2"><label class="field-label">Observações</label><input id="row-obs-${idx}" class="field-input" value="${escapeHtml(item.observacoes||'')}" oninput="atualizarTreinamentoRow(${idx},'observacoes',this.value)"></div>
+    </div>
+    <div class="mt-3 flex items-center gap-2 flex-wrap">
+      <label class="btn btn-outline !py-1.5" style="font-size:.72rem;" for="row-certfile-${idx}"><i class="fa-solid fa-paperclip"></i> Anexar certificado</label>
+      <input type="file" id="row-certfile-${idx}" accept=".pdf,image/*" class="hidden" onchange="onCertificadoFileSelect(${idx}, this)">
+      ${item.certificadoArquivo
+        ? `<a href="${item.certificadoArquivo.dataUrl}" download="${escapeHtml(item.certificadoArquivo.nome)}" class="tag-pill" style="color:var(--secondary);"><i class="fa-solid fa-file-lines"></i> ${escapeHtml(item.certificadoArquivo.nome)}</a>
+           <button type="button" class="btn btn-ghost !p-1" style="color:var(--vermelho);" title="Remover anexo" onclick="removerCertificadoRow(${idx})"><i class="fa-solid fa-xmark"></i></button>`
+        : `<span class="text-xs" style="color:var(--ink-faint);">Nenhum arquivo anexado</span>`}
+    </div>
+    <div class="mt-2" id="row-preview-${idx}">${badgePreviewTreinamento(item)}</div>
+  </div>`;
+}
+
+function onCertificadoFileSelect(idx, inputEl){
+  const file = inputEl.files[0];
+  if(!file) return;
+  if(file.size > 1.8 * 1024 * 1024){
+    showToast('Arquivo muito grande. Envie um arquivo de até ~1,8 MB para manter o desempenho do sistema (dados são salvos no navegador).', 'aviso');
+    inputEl.value = '';
+    return;
+  }
+  // Guarda a referência do item (não o índice) para evitar gravar no lugar
+  // errado se a linha for removida enquanto o arquivo ainda está carregando.
+  const itemRef = state.modalTreinamentos[idx];
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    if(state.modalTreinamentos.indexOf(itemRef) === -1) return; // linha removida nesse meio-tempo
+    itemRef.certificadoArquivo = { nome:file.name, dataUrl:e.target.result };
+    renderModalTreinamentos();
+  };
+  reader.readAsDataURL(file);
+}
+
+function removerCertificadoRow(idx){
+  state.modalTreinamentos[idx].certificadoArquivo = null;
+  renderModalTreinamentos();
+}
+
+function renderModalTreinamentos(){
+  // Limpa o OUTRO container de treinamentos (modal de colaborador vs. modal de
+  // detalhe): como ambos geram os mesmos IDs de linha (row-tipo-0, row-venc-0...),
+  // deixar os dois preenchidos ao mesmo tempo faria getElementById() sempre
+  // pegar o primeiro do documento, lendo/gravando no formulário errado.
+  const outroId = state.modalContainerId === 'r-treinamentos-list' ? 'detalhe-treinamentos-list' : 'r-treinamentos-list';
+  const outroCont = document.getElementById(outroId);
+  if(outroCont) outroCont.innerHTML = '';
+
+  const cont = document.getElementById(state.modalContainerId);
+  if(!cont) return;
+  if(!state.modalTreinamentos.length){
+    cont.innerHTML = `<p class="text-xs italic px-1" style="color:var(--ink-soft);">Nenhum treinamento adicionado. Clique em "Adicionar treinamento" para incluir ASO, NRs, integração etc.</p>`;
+    return;
+  }
+  cont.innerHTML = state.modalTreinamentos.map((item, idx) => linhaTreinamentoHTML(item, idx)).join('');
+}
+
+function novoTreinamentoVazio(){
+  return { id: gerarId(), tipoTreinamento:'', numeroCertificado:'', dataRealizacao:'', validadeMeses:12, autoVencimento:true, dataVencimento:'', situacaoManual:'', observacoes:'', certificadoArquivo:null };
+}
+
+function adicionarTreinamentoRow(){
+  state.modalTreinamentos.push(novoTreinamentoVazio());
+  renderModalTreinamentos();
+}
+
+function removerTreinamentoRow(idx){
+  const item = state.modalTreinamentos[idx];
+  const desc = item && item.tipoTreinamento ? `"${item.tipoTreinamento}"` : 'este treinamento';
+  abrirConfirmacao(
+    'Remover treinamento da lista?',
+    `Remover ${desc}? Isso não afeta dados já salvos — só é gravado de fato se você clicar em Salvar depois.`,
+    () => { state.modalTreinamentos.splice(idx, 1); renderModalTreinamentos(); },
+    { confirmLabel:'Remover' }
+  );
+}
+
+function atualizarTreinamentoRow(idx, campo, valor){
+  if(!state.modalTreinamentos[idx]) return;
+  state.modalTreinamentos[idx][campo] = valor;
+}
+
+function onRowTipoChange(idx, selectEl){
+  if(selectEl.value === '__novo__'){
+    state.modalTreinamentos[idx].tipoTreinamento = '';
+    renderModalTreinamentos();
+    abrirTipoPromptModal((nome, meses) => {
+      state.customTypes.push({ nome, meses });
+      salvarStorage();
+      state.modalTreinamentos[idx].tipoTreinamento = nome;
+      state.modalTreinamentos[idx].validadeMeses = meses;
+      renderModalTreinamentos();
+      recalcVencimentoRow(idx);
+      showToast(`Tipo "${nome}" criado.`, 'sucesso');
+    });
+    return;
+  }
+  state.modalTreinamentos[idx].tipoTreinamento = selectEl.value;
+  state.modalTreinamentos[idx].validadeMeses = validadePadraoPorTipo(state.modalTreinamentos[idx].tipoTreinamento);
+  renderModalTreinamentos();
+  recalcVencimentoRow(idx);
+}
+
+function recalcVencimentoRow(idx){
+  const item = state.modalTreinamentos[idx];
+  if(!item) return;
+  if(item.autoVencimento && item.dataRealizacao){
+    const d = parseDataFlexivel(item.dataRealizacao);
+    if(d){
+      item.dataVencimento = formatarDataISO(somarMeses(d, item.validadeMeses));
+      const inputVenc = document.getElementById('row-venc-'+idx);
+      if(inputVenc) inputVenc.value = item.dataVencimento;
+    }
+  }
+  atualizarPreviewRow(idx);
+}
+
+function atualizarPreviewRow(idx){
+  const item = state.modalTreinamentos[idx];
+  const preview = document.getElementById('row-preview-'+idx);
+  if(item && preview) preview.innerHTML = badgePreviewTreinamento(item);
+}
+
+function openRecordModal(colaboradorId){
+  fecharSidebarMobile();
+  state.modalContainerId = 'r-treinamentos-list';
+  const form = document.getElementById('form-registro');
+  form.reset();
+  if(colaboradorId){
+    const c = state.records.find(x => x.id === colaboradorId);
+    if(!c) return;
+    document.getElementById('modal-registro-title').textContent = 'Editar registro do colaborador';
+    document.getElementById('r-id').value = c.id;
+    document.getElementById('r-nome').value = c.nome || '';
+    document.getElementById('r-matricula').value = c.matricula || '';
+    document.getElementById('r-cpf').value = c.cpf || '';
+    document.getElementById('r-empresa').value = c.empresa || '';
+    document.getElementById('r-unidade').value = c.unidade || '';
+    document.getElementById('r-cliente').value = c.cliente || '';
+    document.getElementById('r-contrato').value = c.contrato || '';
+    document.getElementById('r-centro-custo').value = c.centroCusto || '';
+    document.getElementById('r-setor').value = c.setor || '';
+    document.getElementById('r-cargo').value = c.cargo || '';
+    document.getElementById('r-gestor').value = c.gestor || '';
+    state.modalTreinamentos = JSON.parse(JSON.stringify(c.treinamentos || []));
+  } else {
+    document.getElementById('modal-registro-title').textContent = 'Novo registro de colaborador';
+    document.getElementById('r-id').value = '';
+    state.modalTreinamentos = [ novoTreinamentoVazio() ];
+  }
+  popularFiltros(); // garante datalists atualizadas
+  renderModalTreinamentos();
+  document.getElementById('modal-registro').classList.remove('hidden');
+}
+
+function closeRecordModal(){ document.getElementById('modal-registro').classList.add('hidden'); }
+
+// Lê o valor atual de cada campo direto do DOM e regrava no array de estado.
+// Evita qualquer dessincronização entre o que a pessoa vê na tela e o que
+// seria salvo (fonte de verdade passa a ser sempre o DOM no momento do salvar).
+function sincronizarTreinamentosComDOM(){
+  state.modalTreinamentos.forEach((item, idx) => {
+    const elTipo = document.getElementById('row-tipo-'+idx);
+    const elCert = document.getElementById('row-cert-'+idx);
+    const elReal = document.getElementById('row-realizacao-'+idx);
+    const elValidade = document.getElementById('row-validade-'+idx);
+    const elAuto = document.getElementById('row-auto-'+idx);
+    const elVenc = document.getElementById('row-venc-'+idx);
+    const elSit = document.getElementById('row-situacao-'+idx);
+    const elObs = document.getElementById('row-obs-'+idx);
+    if(elTipo && elTipo.value !== '__novo__') item.tipoTreinamento = elTipo.value;
+    if(elCert) item.numeroCertificado = elCert.value;
+    if(elReal) item.dataRealizacao = elReal.value;
+    if(elValidade) item.validadeMeses = parseInt(elValidade.value) || 0;
+    if(elAuto) item.autoVencimento = elAuto.checked;
+    if(elVenc) item.dataVencimento = elVenc.value;
+    if(elSit) item.situacaoManual = elSit.value;
+    if(elObs) item.observacoes = elObs.value;
+  });
+}
+
+function salvarRegistro(evt){
+  evt.preventDefault();
+  sincronizarTreinamentosComDOM();
+
+  // Valida se todos os treinamentos adicionados possuem tipo, data de realização e vencimento.
+  for(const item of state.modalTreinamentos){
+    if(!item.tipoTreinamento || !item.dataRealizacao || !item.dataVencimento){
+      showToast('Preencha tipo, data de realização e data de vencimento em todos os treinamentos adicionados (ou remova as linhas incompletas).', 'erro');
+      return;
+    }
+  }
+
+  const id = document.getElementById('r-id').value || gerarId();
+  const colaborador = {
+    id,
+    nome: document.getElementById('r-nome').value.trim(),
+    matricula: document.getElementById('r-matricula').value.trim(),
+    cpf: document.getElementById('r-cpf').value.trim(),
+    empresa: document.getElementById('r-empresa').value.trim(),
+    unidade: document.getElementById('r-unidade').value.trim(),
+    cliente: document.getElementById('r-cliente').value.trim(),
+    contrato: document.getElementById('r-contrato').value.trim(),
+    centroCusto: document.getElementById('r-centro-custo').value.trim(),
+    setor: document.getElementById('r-setor').value.trim(),
+    cargo: document.getElementById('r-cargo').value.trim(),
+    gestor: document.getElementById('r-gestor').value.trim(),
+    treinamentos: state.modalTreinamentos.map(t => ({
+      id: t.id || gerarId(),
+      tipoTreinamento: t.tipoTreinamento,
+      numeroCertificado: (t.numeroCertificado||'').trim(),
+      dataRealizacao: t.dataRealizacao,
+      validadeMeses: parseInt(t.validadeMeses) || 0,
+      autoVencimento: !!t.autoVencimento,
+      dataVencimento: t.dataVencimento,
+      situacaoManual: t.situacaoManual || '',
+      observacoes: (t.observacoes||'').trim(),
+      certificadoArquivo: t.certificadoArquivo || null,
+    })),
+  };
+  const idx = state.records.findIndex(x => x.id === id);
+  if(idx >= 0) state.records[idx] = colaborador; else state.records.push(colaborador);
+  if(salvarStorage()) showToast('Registro salvo com sucesso.', 'sucesso');
+  closeRecordModal();
+  renderAll();
+}
+
+/* --------------------------------------------------------------------
+   14. EXCLUSÃO
+   Modo "treinamento": remove um treinamento específico do colaborador
+   (se for o último, o registro do colaborador também é removido).
+   Modo "colaborador": remove o colaborador inteiro, com todos os seus
+   treinamentos, direto pela grade.
+   -------------------------------------------------------------------- */
+function pedirExclusao(colaboradorId, treinamentoId){
+  abrirConfirmacao(
+    'Excluir este treinamento/documento?',
+    'Esta ação não pode ser desfeita. Se for o único treinamento do colaborador, o registro dele também será removido.',
+    () => {
+      const c = state.records.find(x => x.id === colaboradorId);
+      if(!c) return;
+      c.treinamentos = (c.treinamentos||[]).filter(t => t.id !== treinamentoId);
+      if(c.treinamentos.length === 0) state.records = state.records.filter(x => x.id !== colaboradorId);
+      salvarStorage();
+      renderAll();
+      showToast('Treinamento excluído.', 'sucesso');
+    }
+  );
+}
+function pedirExclusaoColaborador(colaboradorId){
+  abrirConfirmacao(
+    'Excluir este colaborador?',
+    'Esta ação remove o colaborador e TODOS os treinamentos/documentos e registros de saúde/INSS vinculados a ele. Não pode ser desfeita.',
+    () => {
+      state.records = state.records.filter(x => x.id !== colaboradorId);
+      state.saudeRegistros = (state.saudeRegistros||[]).filter(r => r.colaboradorId !== colaboradorId);
+      salvarStorage();
+      renderAll();
+      showToast('Colaborador excluído.', 'sucesso');
+    }
+  );
+}
+document.getElementById('confirm-delete-btn').addEventListener('click', () => {
+  const cb = confirmCallback;
+  closeConfirmModal();
+  if(cb) cb();
+});
+document.getElementById('tipo-prompt-confirm-btn').addEventListener('click', () => {
+  const nome = document.getElementById('tipo-prompt-nome').value.trim();
+  const meses = parseInt(document.getElementById('tipo-prompt-meses').value) || 0;
+  if(!nome){ showToast('Informe um nome para o tipo.', 'erro'); return; }
+  if(state.customTypes.some(t => normalizarTexto(t.nome) === normalizarTexto(nome))){ showToast('Já existe um tipo com esse nome.', 'erro'); return; }
+  const cb = tipoPromptCallback;
+  closeTipoPromptModal();
+  if(cb) cb(nome, meses);
+});
+
+
+/* --------------------------------------------------------------------
+   15. IMPORTAÇÃO INTELIGENTE DE PLANILHAS (Excel / CSV)
+   -------------------------------------------------------------------- */
+function openImportModal(){
+  fecharSidebarMobile();
+  document.getElementById('import-step-1').classList.remove('hidden');
+  document.getElementById('import-step-2').classList.add('hidden');
+  document.getElementById('import-step-3').classList.add('hidden');
+  document.getElementById('import-confirm-btn').classList.add('hidden');
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('modal-importar').classList.remove('hidden');
+}
+function closeImportModal(){ document.getElementById('modal-importar').classList.add('hidden'); openImportModal_reset(); }
+function openImportModal_reset(){ state.importRows = []; state.importHeaders = []; state.importMapping = {}; }
+
+// Sugere o melhor campo do sistema para um cabeçalho de coluna da planilha,
+// comparando a versão normalizada (sem acento/maiúsculas) contra o dicionário de sinônimos.
+function sugerirCampo(cabecalho){
+  const norm = normalizarTexto(cabecalho);
+  for(const [campo, sinonimos] of Object.entries(DICIONARIO_CAMPOS)){
+    if(sinonimos.some(s => normalizarTexto(s) === norm)) return campo;
+  }
+  for(const [campo, sinonimos] of Object.entries(DICIONARIO_CAMPOS)){
+    if(sinonimos.some(s => norm.includes(normalizarTexto(s)) || normalizarTexto(s).includes(norm))) return campo;
+  }
+  return '';
+}
+
+function handleFileSelect(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type:'array', cellDates:false });
+      const primeiraAba = wb.SheetNames[0];
+      const linhas = XLSX.utils.sheet_to_json(wb.Sheets[primeiraAba], { header:1, raw:true, defval:'' });
+      if(!linhas.length){ showToast('A planilha parece estar vazia.', 'aviso'); return; }
+      const cabecalhos = linhas[0].map(h => String(h||'').trim()).filter(h => h !== '');
+      const corpo = linhas.slice(1).filter(l => l.some(c => c !== ''));
+      state.importHeaders = cabecalhos;
+      state.importRows = corpo;
+      montarTelaMapeamento();
+    }catch(err){
+      console.error(err);
+      showToast('Não foi possível ler o arquivo. Verifique se é um .xlsx, .xls ou .csv válido.', 'erro');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function montarTelaMapeamento(){
+  document.getElementById('import-step-1').classList.add('hidden');
+  document.getElementById('import-step-2').classList.remove('hidden');
+  document.getElementById('import-confirm-btn').classList.remove('hidden');
+  document.getElementById('import-row-count').textContent = state.importRows.length;
+
+  const camposSistema = [
+    {key:'', label:'Ignorar esta coluna'},
+    {key:'nome', label:'Nome do colaborador'},
+    {key:'matricula', label:'Matrícula'},
+    {key:'cpf', label:'CPF'},
+    {key:'empresa', label:'Empresa'},
+    {key:'unidade', label:'Unidade'},
+    {key:'cliente', label:'Cliente'},
+    {key:'contrato', label:'Contrato'},
+    {key:'centroCusto', label:'Centro de custo'},
+    {key:'setor', label:'Setor'},
+    {key:'cargo', label:'Cargo'},
+    {key:'gestor', label:'Gestor'},
+    {key:'tipoTreinamento', label:'Tipo de treinamento'},
+    {key:'numeroCertificado', label:'Nº do certificado'},
+    {key:'dataRealizacao', label:'Data de realização'},
+    {key:'dataVencimento', label:'Data de vencimento'},
+    {key:'validadeMeses', label:'Validade em meses'},
+    {key:'situacao', label:'Situação'},
+    {key:'observacoes', label:'Observações'},
+  ];
+
+  state.importMapping = {};
+  document.getElementById('mapping-grid').innerHTML = state.importHeaders.map((cab, i) => {
+    const sugestao = sugerirCampo(cab);
+    state.importMapping[i] = sugestao;
+    return `<div>
+      <label class="field-label">Coluna da planilha: "${escapeHtml(cab)}"</label>
+      <select class="field-select" onchange="state.importMapping[${i}] = this.value">
+        ${camposSistema.map(c => `<option value="${c.key}" ${c.key===sugestao?'selected':''}>${c.label}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('');
+}
+
+// Gera uma chave estável para identificar o mesmo colaborador entre linhas
+// da planilha e registros já existentes no sistema (por matrícula, ou por
+// nome+empresa quando a matrícula não estiver disponível).
+function chaveColaborador(obj){
+  const mat = normalizarTexto(obj.matricula);
+  if(mat && mat !== '—') return 'mat:' + mat;
+  return 'ne:' + normalizarTexto(obj.nome) + '|' + normalizarTexto(obj.empresa);
+}
+
+function confirmImport(){
+  let treinamentosImportados = 0, linhasIgnoradas = 0, duplicados = 0, colaboradoresNovos = 0, linhasComErro = 0;
+  const mapaInverso = {}; // idx coluna -> campo sistema
+  Object.entries(state.importMapping).forEach(([idx, campo]) => { if(campo) mapaInverso[idx] = campo; });
+
+  const CAMPOS_COLABORADOR = ['nome','matricula','cpf','empresa','unidade','cliente','contrato','centroCusto','setor','cargo','gestor'];
+  const CAMPOS_TREINAMENTO = ['tipoTreinamento','numeroCertificado','dataRealizacao','dataVencimento','validadeMeses','observacoes'];
+
+  // Índice de colaboradores já existentes no sistema, por chave.
+  const indiceColaboradores = {};
+  state.records.forEach(c => { indiceColaboradores[chaveColaborador(c)] = c; });
+
+  state.importRows.forEach(linha => {
+    try{
+      const bruto = { situacaoManual:'' };
+      Object.entries(mapaInverso).forEach(([idx, campo]) => {
+        const valorBruto = linha[idx];
+        if(campo === 'dataRealizacao' || campo === 'dataVencimento'){
+          const d = parseDataFlexivel(valorBruto);
+          bruto[campo] = d ? formatarDataISO(d) : '';
+        } else if(campo === 'validadeMeses'){
+          bruto[campo] = parseInt(valorBruto) || 0;
+        } else if(campo === 'situacao'){
+          bruto.situacaoManual = String(valorBruto||'').trim();
+        } else {
+          bruto[campo] = String(valorBruto ?? '').trim();
+        }
+      });
+
+      // Completa dados ausentes com regras inteligentes. Células com texto não
+      // reconhecível como data (ex.: "N/A", "-") são tratadas como ausentes.
+      if(!bruto.validadeMeses && bruto.tipoTreinamento) bruto.validadeMeses = validadePadraoPorTipo(bruto.tipoTreinamento);
+      if(!bruto.dataVencimento && bruto.dataRealizacao && bruto.validadeMeses){
+        const dRealizacao = parseDataFlexivel(bruto.dataRealizacao);
+        if(dRealizacao) bruto.dataVencimento = formatarDataISO(somarMeses(dRealizacao, bruto.validadeMeses));
+      }
+      if(!bruto.matricula) bruto.matricula = '—';
+
+      // Só importa linhas com, no mínimo, nome e tipo de treinamento identificados.
+      if(!bruto.nome || !bruto.tipoTreinamento){ linhasIgnoradas++; return; }
+
+      const chave = chaveColaborador(bruto);
+      let colaborador = indiceColaboradores[chave];
+      if(!colaborador){
+        colaborador = { id: gerarId(), treinamentos: [] };
+        CAMPOS_COLABORADOR.forEach(campo => colaborador[campo] = bruto[campo] || '');
+        indiceColaboradores[chave] = colaborador;
+        state.records.push(colaborador);
+        colaboradoresNovos++;
+      } else {
+        // Preenche campos do colaborador que ainda estejam vazios com dados desta linha.
+        CAMPOS_COLABORADOR.forEach(campo => { if(!colaborador[campo] && bruto[campo]) colaborador[campo] = bruto[campo]; });
+      }
+
+      // Evita duplicar o mesmo treinamento (mesmo tipo + mesma data de realização) para o colaborador.
+      const jaExiste = (colaborador.treinamentos||[]).some(t => t.tipoTreinamento === bruto.tipoTreinamento && t.dataRealizacao === bruto.dataRealizacao);
+      if(jaExiste){ duplicados++; return; }
+
+      const treinamento = { id: gerarId(), autoVencimento:false, situacaoManual: bruto.situacaoManual || '' };
+      CAMPOS_TREINAMENTO.forEach(campo => treinamento[campo] = bruto[campo] ?? '');
+      colaborador.treinamentos.push(treinamento);
+      treinamentosImportados++;
+    }catch(err){
+      // Uma linha problemática não pode derrubar a importação inteira.
+      console.warn('Linha de importação ignorada por erro:', err, linha);
+      linhasComErro++;
+    }
+  });
+
+  // Registra tipos de treinamento não previstos como tipos customizados.
+  const tiposConhecidos = new Set(listaTipos().map(t => t.nome));
+  state.records.forEach(c => (c.treinamentos||[]).forEach(t => {
+    if(t.tipoTreinamento && !tiposConhecidos.has(t.tipoTreinamento) && !state.customTypes.some(x=>x.nome===t.tipoTreinamento)){
+      state.customTypes.push({ nome:t.tipoTreinamento, meses:12 });
+      tiposConhecidos.add(t.tipoTreinamento);
+    }
+  }));
+
+  salvarStorage();
+  document.getElementById('import-step-2').classList.add('hidden');
+  document.getElementById('import-confirm-btn').classList.add('hidden');
+  document.getElementById('import-step-3').classList.remove('hidden');
+  document.getElementById('import-summary-text').textContent =
+    `${treinamentosImportados} treinamento(s)/documento(s) importado(s) em ${colaboradoresNovos} novo(s) colaborador(es)`
+    + (duplicados ? ` · ${duplicados} duplicado(s) ignorado(s)` : '')
+    + (linhasIgnoradas ? ` · ${linhasIgnoradas} linha(s) ignorada(s) por falta de nome/tipo` : '')
+    + (linhasComErro ? ` · ${linhasComErro} linha(s) com erro (dados inválidos, não importadas)` : '') + '.';
+  renderAll();
+}
+
+/* --------------------------------------------------------------------
+   16. EXPORTAÇÃO — Excel, PDF e Impressão
+   -------------------------------------------------------------------- */
+function dadosParaExportacao(){
+  return registrosFiltrados().map(r => ({
+    'Colaborador': r.nome, 'Matrícula': r.matricula, 'CPF': r.cpf, 'Empresa': r.empresa, 'Unidade': r.unidade,
+    'Cliente': r.cliente, 'Contrato': r.contrato, 'Centro de Custo': r.centroCusto, 'Setor': r.setor, 'Cargo': r.cargo, 'Gestor': r.gestor,
+    'Tipo de Treinamento': r.tipoTreinamento, 'Nº Certificado': r.numeroCertificado, 'Data de Realização': formatarDataBR(r.dataRealizacao),
+    'Data de Vencimento': formatarDataBR(r.dataVencimento), 'Validade (meses)': r.validadeMeses,
+    'Situação': r._situacao.label, 'Observações': r.observacoes,
+  }));
+}
+
+function exportExcel(){
+  const dados = dadosParaExportacao();
+  if(!dados.length){ showToast('Não há registros para exportar.', 'aviso'); return; }
+  const ws = XLSX.utils.json_to_sheet(dados);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Vencimentos SST');
+  XLSX.writeFile(wb, `controle-vencimentos-sst-${formatarDataISO(new Date())}.xlsx`);
+  showToast('Excel exportado.', 'sucesso');
+}
+
+function exportPDF(){
+  const dados = registrosFiltrados();
+  if(!dados.length){ showToast('Não há registros para exportar.', 'aviso'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+  doc.setFontSize(14); doc.setFont(undefined,'bold');
+  doc.text('Controle de Vencimentos de Documentos Obrigatórios de SST', 30, 30);
+  doc.setFontSize(9); doc.setFont(undefined,'normal');
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')} · ${dados.length} registro(s)`, 30, 46);
+
+  doc.autoTable({
+    startY: 58,
+    styles: { fontSize:7, cellPadding:3 },
+    headStyles: { fillColor:[30,79,214], textColor:255, fontStyle:'bold' },
+    head: [['Colaborador','Matrícula','Empresa','Unidade','Cliente','Setor','Gestor','Tipo','Realização','Vencimento','Situação']],
+    body: dados.map(r => [
+      r.nome, r.matricula, r.empresa, r.unidade, r.cliente, r.setor, r.gestor, r.tipoTreinamento,
+      formatarDataBR(r.dataRealizacao), formatarDataBR(r.dataVencimento), r._situacao.label,
+    ]),
+  });
+  doc.save(`controle-vencimentos-sst-${formatarDataISO(new Date())}.pdf`);
+  showToast('PDF exportado.', 'sucesso');
+}
+
+function printView(){
+  if(state.view === 'dashboard') goToView('registros');
+  if(state.view !== 'registros'){ window.print(); return; }
+  // Impressão deve incluir TODOS os registros filtrados, não só a página atual.
+  const pageSizeAntigo = state.pageSize;
+  const paginaAntiga = state.page;
+  state.pageSize = Number.MAX_SAFE_INTEGER;
+  state.page = 1;
+  renderTable();
+  const restaurar = () => {
+    state.pageSize = pageSizeAntigo;
+    state.page = paginaAntiga;
+    renderTable();
+    window.removeEventListener('afterprint', restaurar);
+  };
+  window.addEventListener('afterprint', restaurar);
+  window.print();
+}
+
+/* --------------------------------------------------------------------
+   16b. PAINEL DE CONFIGURAÇÕES
+   Identidade visual, aparência, tema, módulos do menu, tipos de
+   treinamento, janelas de alerta e backup — tudo editável dentro do
+   próprio sistema e persistido em localStorage.
+   -------------------------------------------------------------------- */
+const CONFIG_STORAGE_KEY = 'sst_vencimentos_config';
+
+const CONFIG_PADRAO = {
+  nome: 'SST Vencimentos',
+  subtitulo: 'CONTROLE DOCUMENTAL',
+  rodape: 'Dados salvos localmente neste navegador. Nenhuma informação é enviada a servidores externos.',
+  logoDataUrl: '',
+  faviconDataUrl: '',
+  tema: 'light',
+  fonte: "'Inter',system-ui,sans-serif",
+  tamanhoFonte: 100,
+  raioCard: 14,
+  raioBotao: 9,
+  cores: {
+    primaria:'#1E4FD6', secundaria:'#7C3AED', acento:'#FFB100', sidebar:'#0D1120',
+    verde:'#158A45', amarelo:'#B7791F', laranja:'#C2540A', vermelho:'#C81E3A', cinza:'#565F73',
+  },
+  modulos: { dashboard:true, registros:true, alertas:true, saude:true, importar:true, novo:true, exportar:true },
+  alertas: { d90:true, d60:true, d30:true, d15:true, d7:true, hoje:true },
+};
+
+function mesclarConfig(parcial){
+  const base = JSON.parse(JSON.stringify(CONFIG_PADRAO));
+  parcial = parcial || {};
+  return {
+    ...base, ...parcial,
+    cores: { ...base.cores, ...(parcial.cores||{}) },
+    modulos: { ...base.modulos, ...(parcial.modulos||{}) },
+    alertas: { ...base.alertas, ...(parcial.alertas||{}) },
+  };
+}
+
+function salvarConfigStorage(){
+  try{ localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(state.config)); return true; }
+  catch(e){
+    console.warn('Não foi possível salvar as configurações:', e);
+    showToast('Não foi possível salvar as configurações: armazenamento local cheio ou indisponível.', 'erro');
+    return false;
+  }
+}
+
+function carregarConfiguracoes(){
+  let salvo = {};
+  try{ salvo = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || '{}'); }catch(e){ salvo = {}; }
+  state.config = mesclarConfig(salvo);
+  aplicarConfiguracoes(state.config);
+}
+
+function hexParaRgba(hex, alpha){
+  const h = (hex||'').replace('#','');
+  if(h.length !== 6) return `rgba(90,90,90,${alpha})`;
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// Escurece uma cor hex em `pct` (0-1) — usado para derivar automaticamente o
+// tom de hover dos botões primários a partir da cor primária escolhida.
+function escurecerHex(hex, pct){
+  const h = (hex||'').replace('#','');
+  if(h.length !== 6) return hex;
+  const clamp = v => Math.max(0, Math.min(255, Math.round(v)));
+  const r = clamp(parseInt(h.substring(0,2),16) * (1-pct));
+  const g = clamp(parseInt(h.substring(2,4),16) * (1-pct));
+  const b = clamp(parseInt(h.substring(4,6),16) * (1-pct));
+  return '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('');
+}
+
+function resolverTemaEfetivo(temaConfig){
+  if(temaConfig === 'auto') return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  return temaConfig === 'dark' ? 'dark' : 'light';
+}
+
+function aplicarTemaVisual(temaEfetivo){
+  document.documentElement.setAttribute('data-theme', temaEfetivo);
+  const icone = document.getElementById('theme-toggle-icon');
+  if(icone) icone.className = temaEfetivo === 'dark' ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+  if(state.view === 'dashboard') renderDashboard();
+}
+
+// Alterna rapidamente claro/escuro pelo botão da barra superior (sobrepõe o modo "automático").
+function alternarTema(){
+  const atual = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  const novo = atual === 'dark' ? 'light' : 'dark';
+  state.config.tema = novo;
+  salvarConfigStorage();
+  aplicarTemaVisual(novo);
+}
+
+function atualizarPaletaGraficos(){
+  const cs = getComputedStyle(document.documentElement);
+  const primaria = cs.getPropertyValue('--primary').trim();
+  const secundaria = cs.getPropertyValue('--secondary').trim();
+  if(primaria) PALETA_GRAFICOS[0] = primaria;
+  if(secundaria) PALETA_GRAFICOS[1] = secundaria;
+}
+
+// Aplica todas as configurações visuais/funcionais ao DOM (chamado ao carregar
+// o sistema e sempre que o usuário salva alterações no painel).
+function aplicarConfiguracoes(cfg){
+  document.title = `${cfg.nome} | Controle de Vencimentos de Documentos Obrigatórios`;
+  const nomeEl = document.getElementById('sidebar-app-name');
+  const subEl = document.getElementById('sidebar-app-subtitle');
+  const rodapeEl = document.getElementById('sidebar-rodape');
+  if(nomeEl) nomeEl.textContent = cfg.nome;
+  if(subEl) subEl.textContent = cfg.subtitulo;
+  if(rodapeEl) rodapeEl.textContent = cfg.rodape;
+
+  const logoBox = document.getElementById('logo-icon-box');
+  const logoImg = document.getElementById('logo-custom-img');
+  if(cfg.logoDataUrl){
+    logoImg.src = cfg.logoDataUrl; logoImg.classList.remove('hidden'); logoBox.classList.add('hidden');
+  } else {
+    logoImg.classList.add('hidden'); logoBox.classList.remove('hidden');
+  }
+
+  const favicon = document.getElementById('app-favicon');
+  if(favicon) favicon.href = cfg.faviconDataUrl || 'data:,';
+
+  aplicarTemaVisual(resolverTemaEfetivo(cfg.tema));
+
+  const root = document.documentElement.style;
+  root.setProperty('--font-family', cfg.fonte);
+  root.setProperty('--radius-card', cfg.raioCard + 'px');
+  root.setProperty('--radius-btn', cfg.raioBotao + 'px');
+  document.documentElement.style.fontSize = (cfg.tamanhoFonte || 100) + '%';
+
+  root.setProperty('--primary', cfg.cores.primaria);
+  root.setProperty('--primary-dark', escurecerHex(cfg.cores.primaria, .18));
+  root.setProperty('--primary-soft', hexParaRgba(cfg.cores.primaria, .1));
+  root.setProperty('--secondary', cfg.cores.secundaria);
+  root.setProperty('--safety', cfg.cores.acento);
+  root.setProperty('--sidebar', cfg.cores.sidebar);
+  root.setProperty('--verde', cfg.cores.verde);
+  root.setProperty('--verde-bg', hexParaRgba(cfg.cores.verde, .14));
+  root.setProperty('--amarelo', cfg.cores.amarelo);
+  root.setProperty('--amarelo-bg', hexParaRgba(cfg.cores.amarelo, .16));
+  root.setProperty('--laranja', cfg.cores.laranja);
+  root.setProperty('--laranja-bg', hexParaRgba(cfg.cores.laranja, .16));
+  root.setProperty('--vermelho', cfg.cores.vermelho);
+  root.setProperty('--vermelho-bg', hexParaRgba(cfg.cores.vermelho, .13));
+  root.setProperty('--cinza', cfg.cores.cinza);
+  root.setProperty('--cinza-bg', hexParaRgba(cfg.cores.cinza, .16));
+  atualizarPaletaGraficos();
+
+  const mapaModulos = {
+    dashboard: ['[data-view="dashboard"]'], registros: ['[data-view="registros"]'], alertas: ['[data-view="alertas"]'],
+    saude: ['[data-view="saude"]'],
+    importar: ['#nav-action-importar'], novo: ['#nav-action-novo', '#topbar-btn-novo'],
+  };
+  Object.entries(mapaModulos).forEach(([chave, seletores]) => {
+    seletores.forEach(sel => {
+      const el = document.querySelector(sel);
+      if(el) el.style.display = cfg.modulos[chave] ? '' : 'none';
+    });
+  });
+  ['#nav-action-exportar-excel','#nav-action-exportar-pdf'].forEach(sel => {
+    const el = document.querySelector(sel);
+    if(el) el.style.display = cfg.modulos.exportar ? '' : 'none';
+  });
+
+  if(state.view === 'registros') renderTable();
+  if(state.view === 'alertas') renderAlertas();
+}
+
+// Preenche o formulário do painel com os valores atuais (chamado sempre que a
+// aba Configurações é aberta, para nunca mostrar valores desatualizados).
+function popularFormularioConfig(){
+  const cfg = state.config;
+  document.getElementById('cfg-nome').value = cfg.nome;
+  document.getElementById('cfg-subtitulo').value = cfg.subtitulo;
+  document.getElementById('cfg-rodape').value = cfg.rodape;
+  document.getElementById('cfg-tema').value = cfg.tema;
+  document.getElementById('cfg-fonte').value = cfg.fonte;
+  document.getElementById('cfg-tamanho-fonte').value = cfg.tamanhoFonte;
+  document.getElementById('cfg-raio-card').value = cfg.raioCard;
+  document.getElementById('cfg-raio-botao').value = cfg.raioBotao;
+
+  document.getElementById('cfg-cor-primaria').value = cfg.cores.primaria;
+  document.getElementById('cfg-cor-secundaria').value = cfg.cores.secundaria;
+  document.getElementById('cfg-cor-acento').value = cfg.cores.acento;
+  document.getElementById('cfg-cor-sidebar').value = cfg.cores.sidebar;
+  document.getElementById('cfg-cor-verde').value = cfg.cores.verde;
+  document.getElementById('cfg-cor-amarelo').value = cfg.cores.amarelo;
+  document.getElementById('cfg-cor-laranja').value = cfg.cores.laranja;
+  document.getElementById('cfg-cor-vermelho').value = cfg.cores.vermelho;
+  document.getElementById('cfg-cor-cinza').value = cfg.cores.cinza;
+
+  Object.entries(cfg.modulos).forEach(([k,v]) => { const el = document.getElementById('cfg-modulo-'+k); if(el) el.checked = v; });
+  document.getElementById('cfg-alerta-90').checked = cfg.alertas.d90;
+  document.getElementById('cfg-alerta-60').checked = cfg.alertas.d60;
+  document.getElementById('cfg-alerta-30').checked = cfg.alertas.d30;
+  document.getElementById('cfg-alerta-15').checked = cfg.alertas.d15;
+  document.getElementById('cfg-alerta-7').checked = cfg.alertas.d7;
+  document.getElementById('cfg-alerta-hoje').checked = cfg.alertas.hoje;
+
+  const logoBox = document.getElementById('cfg-logo-preview-box');
+  const logoImg = document.getElementById('cfg-logo-preview-img');
+  if(cfg.logoDataUrl){ logoImg.src = cfg.logoDataUrl; logoImg.classList.remove('hidden'); logoBox.classList.add('hidden'); }
+  else { logoImg.classList.add('hidden'); logoBox.classList.remove('hidden'); }
+
+  popularSegurancaConfig();
+}
+
+function onLogoFileSelect(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  if(file.size > 900*1024){ showToast('Envie uma imagem de até ~900 KB.', 'aviso'); evt.target.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    state.config.logoDataUrl = e.target.result;
+    popularFormularioConfig();
+  };
+  reader.readAsDataURL(file);
+}
+function removerLogoCustomizado(){ state.config.logoDataUrl = ''; popularFormularioConfig(); }
+
+function onFaviconFileSelect(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  if(file.size > 300*1024){ showToast('Envie um favicon pequeno (até ~300 KB).', 'aviso'); evt.target.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = (e) => { state.config.faviconDataUrl = e.target.result; };
+  reader.readAsDataURL(file);
+}
+function removerFaviconCustomizado(){ state.config.faviconDataUrl = ''; }
+
+function salvarConfiguracoes(){
+  const cfg = state.config;
+  cfg.nome = document.getElementById('cfg-nome').value.trim() || CONFIG_PADRAO.nome;
+  cfg.subtitulo = document.getElementById('cfg-subtitulo').value.trim();
+  cfg.rodape = document.getElementById('cfg-rodape').value.trim();
+  cfg.tema = document.getElementById('cfg-tema').value;
+  cfg.fonte = document.getElementById('cfg-fonte').value;
+  cfg.tamanhoFonte = parseInt(document.getElementById('cfg-tamanho-fonte').value) || 100;
+  cfg.raioCard = parseInt(document.getElementById('cfg-raio-card').value) || 0;
+  cfg.raioBotao = parseInt(document.getElementById('cfg-raio-botao').value) || 0;
+
+  cfg.cores.primaria = document.getElementById('cfg-cor-primaria').value;
+  cfg.cores.secundaria = document.getElementById('cfg-cor-secundaria').value;
+  cfg.cores.acento = document.getElementById('cfg-cor-acento').value;
+  cfg.cores.sidebar = document.getElementById('cfg-cor-sidebar').value;
+  cfg.cores.verde = document.getElementById('cfg-cor-verde').value;
+  cfg.cores.amarelo = document.getElementById('cfg-cor-amarelo').value;
+  cfg.cores.laranja = document.getElementById('cfg-cor-laranja').value;
+  cfg.cores.vermelho = document.getElementById('cfg-cor-vermelho').value;
+  cfg.cores.cinza = document.getElementById('cfg-cor-cinza').value;
+
+  Object.keys(cfg.modulos).forEach(k => { const el = document.getElementById('cfg-modulo-'+k); if(el) cfg.modulos[k] = el.checked; });
+  cfg.alertas.d90 = document.getElementById('cfg-alerta-90').checked;
+  cfg.alertas.d60 = document.getElementById('cfg-alerta-60').checked;
+  cfg.alertas.d30 = document.getElementById('cfg-alerta-30').checked;
+  cfg.alertas.d15 = document.getElementById('cfg-alerta-15').checked;
+  cfg.alertas.d7 = document.getElementById('cfg-alerta-7').checked;
+  cfg.alertas.hoje = document.getElementById('cfg-alerta-hoje').checked;
+  // logoDataUrl e faviconDataUrl já foram atualizados diretamente em state.config pelos uploads.
+
+  salvarConfigStorage();
+  aplicarConfiguracoes(cfg);
+  showToast('Alterações salvas e aplicadas.', 'sucesso');
+}
+
+function restaurarConfiguracoesPadrao(){
+  abrirConfirmacao(
+    'Restaurar configurações padrão?',
+    'Isso vai restaurar todas as configurações visuais para o padrão de fábrica.',
+    () => {
+      state.config = JSON.parse(JSON.stringify(CONFIG_PADRAO));
+      salvarConfigStorage();
+      aplicarConfiguracoes(state.config);
+      popularFormularioConfig();
+      showToast('Configurações restauradas para o padrão.', 'sucesso');
+    },
+    { confirmLabel:'Restaurar', danger:false }
+  );
+}
+
+// Reage a mudanças no tema do sistema operacional quando o modo "automático" está ativo.
+if(window.matchMedia){
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if(state.config && state.config.tema === 'auto') aplicarTemaVisual(resolverTemaEfetivo('auto'));
+  });
+}
+
+/* --------------------------------------------------------------------
+   16c. GESTÃO DE TIPOS DE TREINAMENTO (dentro de Configurações)
+   -------------------------------------------------------------------- */
+function renderTiposConfigLista(){
+  const cont = document.getElementById('cfg-tipos-lista');
+  if(!cont) return;
+  cont.innerHTML = state.customTypes.map((t, idx) => `
+    <div class="flex items-center gap-2 rounded-lg px-2 py-2" style="border:1px solid var(--border); background:var(--surface-2);">
+      <input class="field-input !py-1.5" style="flex:1;" value="${escapeHtml(t.nome)}" onchange="renomearTipoConfig(${idx}, this.value)">
+      <input type="number" min="0" class="field-input !py-1.5" style="width:64px;" title="Validade padrão (meses)" value="${t.meses}" onchange="atualizarValidadeTipoConfig(${idx}, this.value)">
+      <button class="btn btn-ghost !p-1.5" style="color:var(--vermelho);" title="Excluir tipo" onclick="excluirTipoConfig(${idx})"><i class="fa-solid fa-trash"></i></button>
+    </div>`).join('');
+}
+
+function adicionarTipoConfig(){
+  abrirTipoPromptModal((nome, meses) => {
+    state.customTypes.push({ nome, meses });
+    salvarStorage();
+    renderTiposConfigLista();
+    popularFiltros();
+    showToast(`Tipo "${nome}" criado.`, 'sucesso');
+  });
+}
+
+function renomearTipoConfig(idx, novoNome){
+  novoNome = novoNome.trim();
+  const antigo = state.customTypes[idx].nome;
+  if(!novoNome || antigo === novoNome){ renderTiposConfigLista(); return; }
+  state.customTypes[idx].nome = novoNome;
+  state.records.forEach(c => (c.treinamentos||[]).forEach(t => { if(t.tipoTreinamento === antigo) t.tipoTreinamento = novoNome; }));
+  salvarStorage();
+  renderTiposConfigLista();
+  popularFiltros();
+  if(state.view === 'registros') renderTable();
+}
+
+function atualizarValidadeTipoConfig(idx, valor){
+  state.customTypes[idx].meses = parseInt(valor) || 0;
+  salvarStorage();
+}
+
+function excluirTipoConfig(idx){
+  const tipo = state.customTypes[idx];
+  const emUso = state.records.some(c => (c.treinamentos||[]).some(t => t.tipoTreinamento === tipo.nome));
+  if(emUso){ showToast(`Não é possível excluir "${tipo.nome}": existem treinamentos cadastrados com esse tipo. Renomeie-os ou exclua-os antes.`, 'erro'); return; }
+  abrirConfirmacao(`Excluir o tipo "${tipo.nome}"?`, 'Esta ação não pode ser desfeita.', () => {
+    state.customTypes.splice(idx,1);
+    salvarStorage();
+    renderTiposConfigLista();
+    popularFiltros();
+    showToast('Tipo excluído.', 'sucesso');
+  });
+}
+
+/* --------------------------------------------------------------------
+   16d. BACKUP E RESTAURAÇÃO
+   -------------------------------------------------------------------- */
+function coletarBackup(){
+  return { versao:2, exportadoEm:new Date().toISOString(), records: state.records, customTypes: state.customTypes, saudeRegistros: state.saudeRegistros, config: state.config };
+}
+
+function exportarBackup(){
+  const blob = new Blob([JSON.stringify(coletarBackup(), null, 2)], { type:'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `backup-sst-vencimentos-${formatarDataISO(new Date())}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Backup exportado.', 'sucesso');
+}
+
+function importarBackup(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    let dados;
+    try{
+      dados = JSON.parse(e.target.result);
+    }catch(err){
+      showToast('Não foi possível ler este arquivo de backup.', 'erro');
+      evt.target.value = '';
+      return;
+    }
+    abrirConfirmacao(
+      'Restaurar backup?',
+      'Isso vai SUBSTITUIR todos os dados atuais (colaboradores, saúde/INSS, tipos e configurações). Deseja continuar?',
+      () => {
+        state.records = Array.isArray(dados.records) ? dados.records : [];
+        state.customTypes = Array.isArray(dados.customTypes) && dados.customTypes.length ? dados.customTypes : JSON.parse(JSON.stringify(TIPOS_PADRAO));
+        state.saudeRegistros = Array.isArray(dados.saudeRegistros) ? dados.saudeRegistros : [];
+        state.config = mesclarConfig(dados.config || {});
+        salvarStorage();
+        salvarConfigStorage();
+        aplicarConfiguracoes(state.config);
+        popularFormularioConfig();
+        renderTiposConfigLista();
+        popularFiltros();
+        renderAll();
+        showToast('Backup restaurado com sucesso.', 'sucesso');
+      },
+      { confirmLabel:'Restaurar backup' }
+    );
+    evt.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function limparBancoDados(){
+  abrirConfirmacao(
+    'Limpar banco de dados?',
+    'Isso vai apagar TODOS os colaboradores, treinamentos e registros de saúde/INSS cadastrados. Esta ação não pode ser desfeita.',
+    () => {
+      abrirConfirmacao(
+        'Tem certeza mesmo?',
+        'Considere exportar um backup antes, na própria tela de Configurações.',
+        () => {
+          state.records = [];
+          state.saudeRegistros = [];
+          salvarStorage();
+          renderAll();
+          showToast('Banco de dados limpo.', 'sucesso');
+        },
+        { confirmLabel:'Sim, limpar tudo' }
+      );
+    },
+    { confirmLabel:'Continuar' }
+  );
+}
+
+/* --------------------------------------------------------------------
+   16e. SENHA DE ACESSO (tela de bloqueio)
+   Proteção simples no nível do navegador: evita que qualquer pessoa abra
+   o arquivo e use o sistema sem saber a senha combinada pela empresa.
+   NÃO é criptografia de nível corporativo (tudo roda no cliente) — serve
+   como cadeado contra acesso casual, não contra alguém decidido a burlar
+   o código-fonte. A senha nunca é salva em texto puro, apenas um hash
+   simples (sem dependência de APIs que exigem servidor/HTTPS, para
+   funcionar mesmo abrindo o arquivo direto do disco).
+   -------------------------------------------------------------------- */
+const LOCK_STORAGE_KEY = 'sst_vencimentos_lock';
+let lockState = { ativo:false, hash:'', email:'' };
+
+function hashSimples(texto){
+  let hash = 0;
+  const str = String(texto);
+  for(let i = 0; i < str.length; i++){
+    hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  }
+  return 'v1_' + Math.abs(hash).toString(36) + '_' + str.length;
+}
+
+function carregarLock(){
+  try{
+    const salvo = JSON.parse(localStorage.getItem(LOCK_STORAGE_KEY) || '{}');
+    lockState = { ativo: !!salvo.ativo, hash: salvo.hash || '', email: salvo.email || '' };
+  }catch(e){ lockState = { ativo:false, hash:'', email:'' }; }
+}
+
+function salvarLock(){
+  try{ localStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify(lockState)); return true; }
+  catch(e){
+    console.warn('Não foi possível salvar a configuração de senha:', e);
+    showToast('Não foi possível salvar a senha: armazenamento local cheio ou indisponível.', 'erro');
+    return false;
+  }
+}
+
+function precisaDesbloquear(){
+  return lockState.ativo && !!lockState.hash;
+}
+
+function mostrarTelaLock(){
+  document.getElementById('lock-screen').classList.remove('hidden');
+  const shell = document.getElementById('app-shell');
+  shell.classList.add('hidden');
+  shell.style.display = 'none';
+  document.getElementById('lock-app-name').textContent = state.config.nome;
+  const logoBox = document.getElementById('lock-logo-icon-box');
+  const logoImg = document.getElementById('lock-logo-custom-img');
+  if(state.config.logoDataUrl){ logoImg.src = state.config.logoDataUrl; logoImg.classList.remove('hidden'); logoBox.classList.add('hidden'); }
+  else { logoImg.classList.add('hidden'); logoBox.classList.remove('hidden'); }
+  document.getElementById('lock-btn-email').classList.toggle('hidden', !lockState.email);
+  setTimeout(() => document.getElementById('lock-senha-input')?.focus(), 60);
+}
+
+function esconderTelaLock(){
+  document.getElementById('lock-screen').classList.add('hidden');
+  const shell = document.getElementById('app-shell');
+  shell.classList.remove('hidden');
+  shell.style.display = ''; // remove o estilo inline aplicado pela trava imediata no topo da página
+}
+
+function tentarDesbloquear(evt){
+  evt.preventDefault();
+  const valor = document.getElementById('lock-senha-input').value.trim();
+  if(hashSimples(valor) === lockState.hash){
+    document.getElementById('lock-erro').classList.add('hidden');
+    document.getElementById('form-lock').reset();
+    esconderTelaLock();
+  } else {
+    document.getElementById('lock-erro').classList.remove('hidden');
+    document.getElementById('lock-senha-input').value = '';
+    document.getElementById('lock-senha-input').focus();
+  }
+}
+
+function alternarVisibilidadeSenhaLock(){
+  const input = document.getElementById('lock-senha-input');
+  const icone = document.getElementById('lock-senha-eye-icon');
+  const mostrando = input.type === 'text';
+  input.type = mostrando ? 'password' : 'text';
+  icone.className = mostrando ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+}
+
+// Recuperação: como não existe servidor para "confirmar identidade", a única
+// forma de recuperar o acesso é remover a exigência de senha diretamente no
+// navegador. Por segurança, exige confirmação explícita antes de liberar.
+function esqueciSenhaLock(){
+  abrirConfirmacao(
+    'Remover a exigência de senha?',
+    'Não é possível recuperar a senha atual (ela não fica salva em texto puro). Confirmar aqui vai REMOVER a exigência de senha deste sistema, liberando o acesso agora. Você pode definir uma nova senha em seguida, em Configurações → Segurança.',
+    () => {
+      lockState = { ativo:false, hash:'', email: lockState.email };
+      salvarLock();
+      esconderTelaLock();
+      goToView('configuracoes');
+      showToast('Acesso liberado. Defina uma nova senha em Configurações → Segurança.', 'aviso');
+    },
+    { confirmLabel:'Remover exigência' }
+  );
+}
+
+// Abre o programa de e-mail do usuário com uma mensagem pronta para o
+// responsável cadastrado. O sistema não tem servidor, então isso não
+// "envia" nada sozinho — só prepara o e-mail para a pessoa enviar.
+function contatarResponsavelLock(){
+  if(!lockState.email) return;
+  const assunto = encodeURIComponent(`Solicitação de redefinição de senha — ${state.config.nome}`);
+  const corpo = encodeURIComponent(
+    `Olá,\n\nEstou tentando acessar o sistema "${state.config.nome}" e esqueci a senha de acesso.\n` +
+    `Poderia redefinir a senha pelo computador que tem o sistema instalado (Configurações → Segurança → Remover senha)?\n\nObrigado(a).`
+  );
+  window.location.href = `mailto:${lockState.email}?subject=${assunto}&body=${corpo}`;
+}
+
+function popularSegurancaConfig(){
+  const chk = document.getElementById('cfg-senha-ativa');
+  const status = document.getElementById('cfg-senha-status');
+  const emailEl = document.getElementById('cfg-senha-email');
+  if(chk) chk.checked = lockState.ativo;
+  if(status) status.textContent = lockState.hash ? 'Uma senha já está definida para este sistema.' : 'Nenhuma senha definida ainda.';
+  if(emailEl) emailEl.value = lockState.email || '';
+}
+
+function salvarSenhaAcesso(){
+  const ativa = document.getElementById('cfg-senha-ativa').checked;
+  const nova = document.getElementById('cfg-senha-nova').value.trim();
+  const confirmar = document.getElementById('cfg-senha-confirmar').value.trim();
+  const email = document.getElementById('cfg-senha-email').value.trim();
+
+  if(ativa && !lockState.hash && !nova){
+    showToast('Defina uma senha antes de ativar a exigência de acesso.', 'erro');
+    return;
+  }
+  let senhaFoiDefinidaAgora = false;
+  if(nova || confirmar){
+    if(nova.length < 4){ showToast('A senha deve ter pelo menos 4 caracteres.', 'erro'); return; }
+    if(nova !== confirmar){ showToast('As senhas não coincidem.', 'erro'); return; }
+    lockState.hash = hashSimples(nova);
+    senhaFoiDefinidaAgora = true;
+  }
+  lockState.ativo = ativa;
+  lockState.email = email;
+  salvarLock();
+  document.getElementById('cfg-senha-nova').value = '';
+  document.getElementById('cfg-senha-confirmar').value = '';
+  popularSegurancaConfig();
+  showToast('Senha salva.', 'sucesso');
+
+  // Se a senha foi definida mas a caixa "Exigir senha" não está marcada, a
+  // tela de bloqueio nunca vai aparecer — avisa isso explicitamente em vez
+  // de salvar silenciosamente algo que parece não ter feito efeito.
+  if(!ativa && senhaFoiDefinidaAgora){
+    showToast('Senha salva, mas a exigência ainda está DESATIVADA. Marque "Exigir senha para acessar o sistema" e clique em Salvar senha novamente para ativar a proteção.', 'aviso');
+    return;
+  }
+
+  // Com a proteção ativa, mostra a tela de bloqueio na hora — prova visual
+  // imediata de que está funcionando, sem precisar recarregar a página.
+  if(ativa && lockState.hash){
+    mostrarTelaLock();
+  }
+}
+
+function removerSenhaAcesso(){
+  abrirConfirmacao(
+    'Remover a senha de acesso?',
+    'O sistema ficará sem essa proteção até uma nova senha ser definida.',
+    () => {
+      lockState = { ativo:false, hash:'', email: lockState.email };
+      salvarLock();
+      document.getElementById('cfg-senha-nova').value = '';
+      document.getElementById('cfg-senha-confirmar').value = '';
+      popularSegurancaConfig();
+      showToast('Senha removida.', 'sucesso');
+    },
+    { confirmLabel:'Remover senha' }
+  );
+}
+
+/* --------------------------------------------------------------------
+   16f. SAÚDE / INSS (SESMT) — afastamentos/atestados, CAT, benefícios
+   previdenciários e restrições/readaptação de função. Cada registro é
+   vinculado a um colaborador já existente em state.records (colaboradorId),
+   sem duplicar o cadastro completo. Persistido em state.saudeRegistros.
+   -------------------------------------------------------------------- */
+
+// Classifica um registro de saúde/INSS em cor/rótulo/estado (aberto ou não).
+// Regras por tipo (todas usam "Data de término/prevista" como referência):
+// - Restrição: se houver prazo, usa a mesma escala de urgência dos documentos
+//   (verde/amarelo/laranja/vermelho conforme dias até a reavaliação, cinza se
+//   sem prazo definido) — aqui "no passado" significa reavaliação atrasada.
+// - Afastamento/CAT/Benefício: sem data de término (ou data futura) = em
+//   aberto (laranja, ou vermelho para CAT aberta); com data de término no
+//   passado = encerrado (verde).
+function calcularSituacaoSaude(reg){
+  if(reg.tipo === 'restricao'){
+    if(!reg.dataFim) return { cor:'cinza', label:'Vigente (sem prazo)', aberto:true };
+    const dias = diffDias(reg.dataFim);
+    if(isNaN(dias)) return { cor:'cinza', label:'Vigente (sem prazo)', aberto:true };
+    if(dias < 0)   return { cor:'vermelho', label:`Reavaliação atrasada (${Math.abs(dias)}d)`, aberto:true };
+    if(dias < 15)  return { cor:'vermelho', label:`Reavaliar em ${dias}d`, aberto:true };
+    if(dias <= 30) return { cor:'laranja',  label:`Reavaliar em ${dias}d`, aberto:true };
+    if(dias <= 60) return { cor:'amarelo',  label:`Reavaliar em ${dias}d`, aberto:true };
+    return { cor:'verde', label:`Válida até ${formatarDataBR(reg.dataFim)}`, aberto:true };
+  }
+  const fim = reg.dataFim ? parseISOLocal(reg.dataFim) : null;
+  const encerrado = !!(fim && fim < hojeSemHora());
+  if(reg.tipo === 'cat'){
+    const label = reg.situacaoCat || (encerrado ? 'Encerrada' : 'Aberta');
+    const cor = encerrado || label === 'Encerrada' ? 'verde' : (label === 'Em análise' ? 'amarelo' : 'vermelho');
+    return { cor, label, aberto: !(encerrado || label === 'Encerrada') };
+  }
+  if(reg.tipo === 'beneficio'){
+    const label = reg.situacaoBeneficio || (encerrado ? 'Cessado' : 'Ativo');
+    const cor = encerrado || label === 'Cessado' ? 'verde' : (label === 'Em perícia' ? 'amarelo' : 'laranja');
+    return { cor, label, aberto: !(encerrado || label === 'Cessado') };
+  }
+  // afastamento
+  return { cor: encerrado ? 'verde' : 'laranja', label: encerrado ? 'Encerrado' : 'Em andamento', aberto: !encerrado };
+}
+
+function colaboradorPorId(id){ return state.records.find(c => c.id === id); }
+
+function saudeRegistrosCalculados(){
+  return (state.saudeRegistros||[]).map(r => {
+    const c = colaboradorPorId(r.colaboradorId);
+    return { ...r, _colaborador: c, _situacao: calcularSituacaoSaude(r) };
+  }).filter(r => r._colaborador); // ignora órfãos (colaborador excluído sem cascata, por segurança)
+}
+
+function saudeFiltrados(){
+  let lista = saudeRegistrosCalculados();
+  const busca = normalizarTexto(document.getElementById('sd-f-busca')?.value || '');
+  const fTipo = document.getElementById('sd-f-tipo')?.value;
+  const fStatus = document.getElementById('sd-f-status')?.value;
+  if(busca) lista = lista.filter(r => normalizarTexto(r._colaborador.nome).includes(busca) || normalizarTexto(r._colaborador.matricula).includes(busca));
+  if(fTipo) lista = lista.filter(r => r.tipo === fTipo);
+  if(fStatus === 'aberto') lista = lista.filter(r => r._situacao.aberto);
+  if(fStatus === 'encerrado') lista = lista.filter(r => !r._situacao.aberto);
+  return lista.sort((a,b) => String(b.dataInicio||'').localeCompare(String(a.dataInicio||'')));
+}
+
+function limparFiltrosSaude(){
+  document.getElementById('sd-f-busca').value = '';
+  document.getElementById('sd-f-tipo').value = '';
+  document.getElementById('sd-f-status').value = '';
+  renderSaude();
+}
+
+// Atalho de navegação usado pelos cards de KPI da aba Saúde/INSS: aplica os
+// filtros de tipo/status da própria tela e rola até a tabela já filtrada.
+function irParaSaudeFiltrado(tipo, status){
+  const selTipo = document.getElementById('sd-f-tipo');
+  const selStatus = document.getElementById('sd-f-status');
+  if(selTipo) selTipo.value = tipo || '';
+  if(selStatus) selStatus.value = status || '';
+  renderSaude();
+}
+
+function renderSaudeKPIs(){
+  const todos = saudeRegistrosCalculados();
+  const kpis = [
+    { label:'Afastamentos em andamento', value: todos.filter(r => r.tipo==='afastamento' && r._situacao.aberto).length, color:'var(--laranja)', onClick:"irParaSaudeFiltrado('afastamento','aberto')" },
+    { label:'CAT em aberto', value: todos.filter(r => r.tipo==='cat' && r._situacao.aberto).length, color:'var(--vermelho)', onClick:"irParaSaudeFiltrado('cat','aberto')" },
+    { label:'Benefícios INSS ativos', value: todos.filter(r => r.tipo==='beneficio' && r._situacao.aberto).length, color:'var(--laranja)', onClick:"irParaSaudeFiltrado('beneficio','aberto')" },
+    { label:'Restrições/readaptações vigentes', value: todos.filter(r => r.tipo==='restricao').length, color:'var(--primary)', onClick:"irParaSaudeFiltrado('restricao','')" },
+    { label:'Reavaliações próximas (≤30d)', value: todos.filter(r => r.tipo==='restricao' && ['vermelho','laranja'].includes(r._situacao.cor)).length, color:'var(--vermelho)', onClick:"irParaSaudeFiltrado('restricao','')" },
+  ];
+  document.getElementById('saude-kpi-grid').innerHTML = kpis.map(k => `
+    <button type="button" class="kpi-card" onclick="${k.onClick}">
+      <span class="kpi-value tabular" style="color:${k.color}">${k.value}</span>
+      <span class="kpi-label">${k.label}</span>
+      <span class="kpi-card-hint">Ver detalhes <i class="fa-solid fa-arrow-right"></i></span>
+    </button>`).join('');
+}
+
+function renderSaudeGraficos(){
+  // Os gráficos refletem TODOS os registros (não só os filtrados na tabela
+  // abaixo), da mesma forma que os gráficos do Dashboard geral não seguem
+  // os filtros da tela de Registros — dão a visão consolidada da SESMT.
+  const todos = saudeRegistrosCalculados();
+
+  const porTipo = {};
+  todos.forEach(r => {
+    const label = (SAUDE_TIPOS[r.tipo] || {}).label || r.tipo;
+    porTipo[label] = (porTipo[label] || 0) + 1;
+  });
+  renderDoughnutChart('chart-saude-tipo', porTipo);
+
+  const porMes = {};
+  todos.forEach(r => {
+    if(!r.dataInicio) return;
+    const d = parseISOLocal(r.dataInicio);
+    if(!d) return;
+    const k = chaveMes(d);
+    porMes[k] = (porMes[k] || 0) + 1;
+  });
+  renderBarChart('chart-saude-mes', porMes, false);
+}
+
+function dadosSaudeParaExportacao(){
+  return saudeFiltrados().map(r => ({
+    'Colaborador': r._colaborador.nome, 'Matrícula': r._colaborador.matricula, 'Empresa': r._colaborador.empresa,
+    'Tipo': (SAUDE_TIPOS[r.tipo]||{}).label || r.tipo,
+    'Data de Início': formatarDataBR(r.dataInicio), 'Data de Término/Prevista': r.dataFim ? formatarDataBR(r.dataFim) : '',
+    'Situação': r._situacao.label, 'Observações': r.observacoes,
+  }));
+}
+
+function exportSaudeExcel(){
+  const dados = dadosSaudeParaExportacao();
+  if(!dados.length){ showToast('Não há registros de saúde/INSS para exportar.', 'aviso'); return; }
+  const ws = XLSX.utils.json_to_sheet(dados);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Saude INSS');
+  XLSX.writeFile(wb, `saude-inss-sesmt-${formatarDataISO(new Date())}.xlsx`);
+  showToast('Excel exportado.', 'sucesso');
+}
+
+function exportSaudePDF(){
+  const dados = saudeFiltrados();
+  if(!dados.length){ showToast('Não há registros de saúde/INSS para exportar.', 'aviso'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+  doc.setFontSize(14); doc.setFont(undefined,'bold');
+  doc.text('Controle de Saúde Ocupacional e Benefícios INSS (SESMT)', 30, 30);
+  doc.setFontSize(9); doc.setFont(undefined,'normal');
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')} · ${dados.length} registro(s)`, 30, 46);
+
+  doc.autoTable({
+    startY: 58,
+    styles: { fontSize:7, cellPadding:3 },
+    headStyles: { fillColor:[30,79,214], textColor:255, fontStyle:'bold' },
+    head: [['Colaborador','Matrícula','Empresa','Tipo','Início','Término/Previsão','Situação','Observações']],
+    body: dados.map(r => [
+      r._colaborador.nome, r._colaborador.matricula, r._colaborador.empresa || '',
+      (SAUDE_TIPOS[r.tipo]||{}).label || r.tipo, formatarDataBR(r.dataInicio), r.dataFim ? formatarDataBR(r.dataFim) : '—',
+      r._situacao.label, r.observacoes || '',
+    ]),
+  });
+  doc.save(`saude-inss-sesmt-${formatarDataISO(new Date())}.pdf`);
+  showToast('PDF exportado.', 'sucesso');
+}
+
+function renderSaude(){
+  renderSaudeKPIs();
+  renderSaudeGraficos();
+  const lista = saudeFiltrados();
+  document.getElementById('saude-head-row').innerHTML = `
+    <th>Colaborador</th><th>Tipo</th><th>Início</th><th>Fim / Previsão</th><th>Situação</th><th>Observações</th><th class="no-print">Ações</th>`;
+  document.getElementById('saude-empty').classList.toggle('hidden', lista.length !== 0);
+  document.getElementById('saude-body').innerHTML = lista.map(r => {
+    const tipoInfo = SAUDE_TIPOS[r.tipo] || { label:r.tipo, icone:'fa-notes-medical' };
+    return `<tr>
+      <td>
+        <p class="font-semibold">${escapeHtml(r._colaborador.nome)}</p>
+        <p class="text-xs" style="color:var(--ink-soft);">${escapeHtml(r._colaborador.matricula)} · ${escapeHtml(r._colaborador.empresa||'')}</p>
+      </td>
+      <td><span class="tag-pill"><i class="fa-solid ${tipoInfo.icone}"></i> ${escapeHtml(tipoInfo.label)}</span></td>
+      <td>${formatarDataBR(r.dataInicio)}</td>
+      <td>${r.dataFim ? formatarDataBR(r.dataFim) : '—'}</td>
+      <td><span class="badge badge-${r._situacao.cor}"><span class="badge-dot" style="background:currentColor;"></span>${escapeHtml(r._situacao.label)}</span></td>
+      <td class="max-w-xs truncate" title="${escapeHtml(r.observacoes||'')}">${escapeHtml(r.observacoes||'') || '—'}</td>
+      <td class="no-print">
+        <button class="btn btn-ghost !p-1.5" title="Editar" onclick="openSaudeModal('${r.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-ghost !p-1.5" style="color:var(--vermelho);" title="Excluir" onclick="pedirExclusaoSaude('${r.id}')"><i class="fa-solid fa-trash"></i></button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// Datalist de colaboradores para o campo de busca do modal de saúde/INSS.
+// Reconstruída a cada abertura do modal para sempre refletir os dados atuais.
+let mapaLabelColaboradorSaude = {};
+function popularColaboradoresSaudeDatalist(){
+  mapaLabelColaboradorSaude = {};
+  const dl = document.getElementById('dl-colaboradores-saude');
+  dl.innerHTML = state.records.map(c => {
+    const label = `${c.nome} — ${c.matricula}`;
+    mapaLabelColaboradorSaude[label] = c.id;
+    return `<option value="${escapeHtml(label)}">`;
+  }).join('');
+}
+
+function onSaudeColaboradorInput(){
+  const valor = document.getElementById('sd-colaborador-busca').value;
+  const id = mapaLabelColaboradorSaude[valor] || '';
+  document.getElementById('sd-colaborador-id').value = id;
+  document.getElementById('sd-colaborador-erro').classList.toggle('hidden', !!id || !valor);
+}
+
+const SAUDE_LABELS_DATA = {
+  afastamento: { inicio:'Data de início *', fim:'Data de término / prevista' },
+  cat:         { inicio:'Data de início do afastamento *', fim:'Data de retorno / encerramento' },
+  beneficio:   { inicio:'Data de início do benefício *', fim:'Data de cessação' },
+  restricao:   { inicio:'Data de início *', fim:'Válida até (data de reavaliação)' },
+};
+
+function onSaudeTipoChange(){
+  const tipo = document.getElementById('sd-tipo').value;
+  ['afastamento','cat','beneficio','restricao'].forEach(t => {
+    document.getElementById('sd-campos-'+t).classList.toggle('hidden', t !== tipo);
+  });
+  const labels = SAUDE_LABELS_DATA[tipo] || SAUDE_LABELS_DATA.afastamento;
+  document.getElementById('sd-label-data-inicio').textContent = labels.inicio;
+  document.getElementById('sd-label-data-fim').textContent = labels.fim;
+}
+
+let saudeAnexoAtual = null;
+function renderSaudeAnexoInfo(){
+  const cont = document.getElementById('sd-anexo-info');
+  cont.innerHTML = saudeAnexoAtual
+    ? `<a href="${saudeAnexoAtual.dataUrl}" download="${escapeHtml(saudeAnexoAtual.nome)}" class="tag-pill" style="color:var(--secondary);"><i class="fa-solid fa-file-lines"></i> ${escapeHtml(saudeAnexoAtual.nome)}</a>
+       <button type="button" class="btn btn-ghost !p-1" style="color:var(--vermelho);" title="Remover anexo" onclick="removerSaudeAnexo()"><i class="fa-solid fa-xmark"></i></button>`
+    : `<span class="text-xs" style="color:var(--ink-faint);">Nenhum arquivo anexado</span>`;
+}
+function removerSaudeAnexo(){ saudeAnexoAtual = null; renderSaudeAnexoInfo(); }
+function onSaudeAnexoSelect(inputEl){
+  const file = inputEl.files[0];
+  if(!file) return;
+  if(file.size > 1.8 * 1024 * 1024){
+    showToast('Arquivo muito grande. Envie um arquivo de até ~1,8 MB.', 'aviso');
+    inputEl.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    saudeAnexoAtual = { nome:file.name, dataUrl:e.target.result };
+    renderSaudeAnexoInfo();
+  };
+  reader.readAsDataURL(file);
+}
+
+function openSaudeModal(id){
+  popularColaboradoresSaudeDatalist();
+  const form = document.getElementById('form-saude');
+  form.reset();
+  saudeAnexoAtual = null;
+  document.getElementById('sd-colaborador-id').value = '';
+  document.getElementById('sd-colaborador-erro').classList.add('hidden');
+  document.getElementById('sd-btn-excluir').classList.toggle('hidden', !id);
+
+  if(id){
+    const r = state.saudeRegistros.find(x => x.id === id);
+    if(!r) return;
+    const c = colaboradorPorId(r.colaboradorId);
+    document.getElementById('modal-saude-title').textContent = 'Editar registro de saúde / INSS';
+    document.getElementById('sd-id').value = r.id;
+    if(c){
+      const label = `${c.nome} — ${c.matricula}`;
+      document.getElementById('sd-colaborador-busca').value = label;
+      document.getElementById('sd-colaborador-id').value = c.id;
+    }
+    document.getElementById('sd-tipo').value = r.tipo;
+    document.getElementById('sd-data-inicio').value = r.dataInicio || '';
+    document.getElementById('sd-data-fim').value = r.dataFim || '';
+    document.getElementById('sd-observacoes').value = r.observacoes || '';
+    document.getElementById('sd-af-cid').value = r.cid || '';
+    document.getElementById('sd-af-motivo').value = r.motivo || '';
+    document.getElementById('sd-cat-numero').value = r.numeroCat || '';
+    document.getElementById('sd-cat-data-acidente').value = r.dataAcidente || '';
+    document.getElementById('sd-cat-tipo').value = r.tipoAcidente || 'Típico';
+    document.getElementById('sd-cat-orgao').value = r.orgaoNotificado || '';
+    document.getElementById('sd-cat-situacao').value = r.situacaoCat || 'Aberta';
+    document.getElementById('sd-ben-tipo').value = r.tipoBeneficio || '';
+    document.getElementById('sd-ben-numero').value = r.numeroBeneficio || '';
+    document.getElementById('sd-ben-situacao').value = r.situacaoBeneficio || 'Ativo';
+    document.getElementById('sd-ben-pericia').value = r.dataPericia || '';
+    document.getElementById('sd-res-funcao-origem').value = r.funcaoOrigem || '';
+    document.getElementById('sd-res-descricao').value = r.descricaoRestricao || '';
+    saudeAnexoAtual = r.anexoArquivo || null;
+  } else {
+    document.getElementById('modal-saude-title').textContent = 'Novo registro de saúde / INSS';
+    document.getElementById('sd-id').value = '';
+    document.getElementById('sd-tipo').value = 'afastamento';
+  }
+  onSaudeTipoChange();
+  renderSaudeAnexoInfo();
+  document.getElementById('modal-saude').classList.remove('hidden');
+}
+
+function closeSaudeModal(){ document.getElementById('modal-saude').classList.add('hidden'); }
+
+function salvarSaude(evt){
+  evt.preventDefault();
+  const colaboradorId = document.getElementById('sd-colaborador-id').value;
+  if(!colaboradorId){
+    document.getElementById('sd-colaborador-erro').classList.remove('hidden');
+    showToast('Selecione um colaborador válido da lista.', 'erro');
+    return;
+  }
+  const id = document.getElementById('sd-id').value || gerarId();
+  const registro = {
+    id, colaboradorId,
+    tipo: document.getElementById('sd-tipo').value,
+    dataInicio: document.getElementById('sd-data-inicio').value,
+    dataFim: document.getElementById('sd-data-fim').value,
+    observacoes: document.getElementById('sd-observacoes').value.trim(),
+    anexoArquivo: saudeAnexoAtual,
+    cid: document.getElementById('sd-af-cid').value.trim(),
+    motivo: document.getElementById('sd-af-motivo').value.trim(),
+    numeroCat: document.getElementById('sd-cat-numero').value.trim(),
+    dataAcidente: document.getElementById('sd-cat-data-acidente').value,
+    tipoAcidente: document.getElementById('sd-cat-tipo').value,
+    orgaoNotificado: document.getElementById('sd-cat-orgao').value.trim(),
+    situacaoCat: document.getElementById('sd-cat-situacao').value,
+    tipoBeneficio: document.getElementById('sd-ben-tipo').value.trim(),
+    numeroBeneficio: document.getElementById('sd-ben-numero').value.trim(),
+    situacaoBeneficio: document.getElementById('sd-ben-situacao').value,
+    dataPericia: document.getElementById('sd-ben-pericia').value,
+    funcaoOrigem: document.getElementById('sd-res-funcao-origem').value.trim(),
+    descricaoRestricao: document.getElementById('sd-res-descricao').value.trim(),
+  };
+  const idx = state.saudeRegistros.findIndex(x => x.id === id);
+  if(idx >= 0) state.saudeRegistros[idx] = registro; else state.saudeRegistros.push(registro);
+  if(salvarStorage()) showToast('Registro de saúde/INSS salvo.', 'sucesso');
+  closeSaudeModal();
+  renderAll();
+}
+
+function pedirExclusaoSaude(id){
+  id = id || document.getElementById('sd-id').value;
+  if(!id) return;
+  abrirConfirmacao(
+    'Excluir este registro de saúde/INSS?',
+    'Esta ação não pode ser desfeita.',
+    () => {
+      state.saudeRegistros = state.saudeRegistros.filter(x => x.id !== id);
+      salvarStorage();
+      closeSaudeModal();
+      renderAll();
+      showToast('Registro excluído.', 'sucesso');
+    }
+  );
+}
+
+/* --------------------------------------------------------------------
+   17. FECHAMENTO DE MODAIS AO CLICAR FORA / ESC
+   -------------------------------------------------------------------- */
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => { if(e.target === overlay) overlay.classList.add('hidden'); });
+});
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape') document.querySelectorAll('.modal-overlay').forEach(m => m.classList.add('hidden'));
+});
+
+/* --------------------------------------------------------------------
+   18. INICIALIZAÇÃO
+   -------------------------------------------------------------------- */
+// Torna os itens de navegação e ações rápidas do menu lateral acessíveis
+// via teclado (Tab + Enter/Espaço), já que são <div onclick> sem foco nativo.
+function habilitarNavegacaoPorTeclado(){
+  document.querySelectorAll('#sidebar .nav-item[onclick]').forEach(el => {
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('role', 'button');
+    el.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); el.click(); }
+    });
+  });
+}
+
+function init(){
+  carregarStorage();
+  carregarConfiguracoes();
+  carregarLock();
+  popularFiltros();
+  carregarEstadoSidebar();
+  habilitarNavegacaoPorTeclado();
+  goToView('dashboard');
+  if(precisaDesbloquear()) mostrarTelaLock();
+  // Recalcula situações automaticamente a cada minuto (ex.: virada de dia com app aberto).
+  setInterval(renderAll, 60000);
+}
+init();
+</script>
+</body>
+</html>
