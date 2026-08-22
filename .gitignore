@@ -2,3 +2,6 @@
 *.xlsx
 *.pdf
 backup-sst-vencimentos-*.json
+
+.vercel
+.env*
