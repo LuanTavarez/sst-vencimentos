@@ -1569,13 +1569,6 @@ function irParaRegistros(tipo, situacao){
   renderTable();
 }
 function irParaAlertas(){ goToView('alertas'); }
-function irParaTreinamentosFiltrado(tipo, status){
-  const selTipo = document.getElementById('tu-f-tipo');
-  const selStatus = document.getElementById('tu-f-status');
-  if(selTipo) selTipo.value = tipo || '';
-  if(selStatus) selStatus.value = status || '';
-  renderTreinamentos();
-}
 
 /* --------------------------------------------------------------------
    8. RENDER PRINCIPAL (chamado sempre que os dados mudam)
@@ -4081,6 +4074,11 @@ if(window.pdfjsLib){
 }
 
 let ocrArquivoAtual = null; // { nome, dataUrl, tamanho }
+// Identificador da leitura em andamento: incrementado sempre que o usuário
+// troca de arquivo ou fecha/reinicia o modal, para que uma leitura antiga
+// (ainda processando em segundo plano) nunca sobrescreva a tela depois que
+// o usuário já seguiu em frente.
+let ocrOperacaoId = 0;
 
 function mostrarEtapaOcr(etapa){
   ['upload','processando','erro','resultado'].forEach(e => {
@@ -4095,13 +4093,15 @@ function atualizarStatusOcr(titulo, detalhe){
 function openOcrModal(){
   document.getElementById('ocr-file-input').value = '';
   ocrArquivoAtual = null;
+  ocrOperacaoId++;
   mostrarEtapaOcr('upload');
   document.getElementById('ocr-usar-dados-btn').classList.add('hidden');
   document.getElementById('modal-ocr').classList.remove('hidden');
 }
-function closeOcrModal(){ document.getElementById('modal-ocr').classList.add('hidden'); }
+function closeOcrModal(){ ocrOperacaoId++; document.getElementById('modal-ocr').classList.add('hidden'); }
 function reiniciarOcrModal(){
   document.getElementById('ocr-file-input').value = '';
+  ocrOperacaoId++;
   mostrarEtapaOcr('upload');
   document.getElementById('ocr-usar-dados-btn').classList.add('hidden');
 }
@@ -4156,7 +4156,9 @@ function interpretarTextoCertificado(textoOriginal){
   const mMat = texto.match(/matr[ií]cula\s*[:\-]?\s*([A-Za-z0-9.\-]{2,20})/i) || texto.match(/\bregistro\s*[:\-]?\s*([A-Za-z0-9.\-]{2,20})/i);
   if(mMat) resultado.matricula = mMat[1].trim();
 
-  const mNome = texto.match(/(?:nome do (?:paciente|colaborador|funcion[aá]rio|trabalhador)|nome|colaborador|participante|funcion[aá]rio)\s*[:\-]\s*([A-Za-zÀ-ÖØ-öø-ÿ' ]{5,80})/i);
+  // Separador (":" ou "-") é opcional: muitos certificados colocam o valor
+  // logo abaixo do rótulo, sem dois-pontos (ex.: "Nome\nJoana Pereira Martins").
+  const mNome = texto.match(/(?:nome do (?:paciente|colaborador|funcion[aá]rio|trabalhador)|nome|colaborador|participante|funcion[aá]rio)\s*[:\-]?\s*([A-Za-zÀ-ÖØ-öø-ÿ' ]{5,80})/i);
   if(mNome) resultado.nome = mNome[1].split(/\n|CPF|Matr[ií]cula|RG|Data/i)[0].trim().replace(/\s{2,}/g, ' ');
 
   // Tipo de treinamento: prioriza um tipo já cadastrado no sistema que apareça
@@ -4234,6 +4236,7 @@ function popularResultadoOcr(dados, texto){
 async function onOcrFileSelect(evt){
   const file = evt.target.files[0];
   if(!file) return;
+  const minhaOperacao = ++ocrOperacaoId;
   mostrarEtapaOcr('processando');
   atualizarStatusOcr('Lendo o arquivo…', 'Isso pode levar alguns segundos.');
   try{
@@ -4244,6 +4247,7 @@ async function onOcrFileSelect(evt){
     });
     reader.readAsDataURL(file);
     const [texto, dataUrl] = await Promise.all([ extrairTextoDeArquivo(file), dataUrlPromise ]);
+    if(minhaOperacao !== ocrOperacaoId) return; // usuário trocou de arquivo/fechou o modal enquanto isto processava
     if(!texto || texto.replace(/\s+/g, '').length < 8){
       throw new Error('Não foi possível reconhecer texto neste arquivo.');
     }
@@ -4253,6 +4257,7 @@ async function onOcrFileSelect(evt){
     mostrarEtapaOcr('resultado');
     document.getElementById('ocr-usar-dados-btn').classList.remove('hidden');
   }catch(err){
+    if(minhaOperacao !== ocrOperacaoId) return;
     console.error(err);
     document.getElementById('ocr-erro-detalhe').textContent = 'Tente outra foto/arquivo com melhor qualidade e iluminação, ou cadastre manualmente. (' + (err.message || 'erro desconhecido') + ')';
     mostrarEtapaOcr('erro');
