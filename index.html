@@ -1674,6 +1674,7 @@ function salvarStorage(){
 }
 
 function carregarStorage(){
+  let eraPrimeiraExecucao = false;
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw){
@@ -1684,6 +1685,8 @@ function carregarStorage(){
       state.turmas = Array.isArray(data.turmas) ? data.turmas : [];
       state.pppRegistros = Array.isArray(data.pppRegistros) ? data.pppRegistros : [];
       state.pgrRegistros = Array.isArray(data.pgrRegistros) ? data.pgrRegistros : [];
+    } else {
+      eraPrimeiraExecucao = true;
     }
   }catch(e){ console.warn('Não foi possível carregar dados salvos:', e); }
   // Primeira execução: semeia o catálogo de tipos com os padrões, para que
@@ -1707,12 +1710,100 @@ function carregarStorage(){
     }
   });
   if(precisaSalvarMigracao) salvarStorage();
+
+  // Primeiro acesso deste navegador (nunca salvou nada antes): popula o
+  // sistema com dados de demonstração em todos os módulos, para que a
+  // avaliação/teste do sistema não comece com todas as telas vazias.
+  // Some assim que dados de verdade forem cadastrados ou um backup real
+  // for restaurado — e pode ser removido a qualquer momento em
+  // Configurações → Backup → Limpar banco de dados.
+  if(eraPrimeiraExecucao && !state.records.length){
+    semearDadosDemonstracao();
+    salvarStorage();
+  }
 }
 
 /* --------------------------------------------------------------------
    4. UTILITÁRIOS
    -------------------------------------------------------------------- */
 function gerarId(){ return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+
+// Dados de demonstração/teste carregados automaticamente no primeiro acesso
+// (ver carregarStorage). Cobre colaboradores com documentos em todos os
+// status, Saúde/INSS, agenda de Treinamentos, PGR/PPRA com inventário de
+// riscos e PPP (gerados a partir do PGR + um manual), para dar uma visão
+// completa do sistema já no primeiro uso.
+function semearDadosDemonstracao(){
+  const hoje = new Date();
+  function addDays(dias){ const d = new Date(hoje); d.setDate(d.getDate()+dias); return formatarDataISO(d); }
+  function novoTreino(tipo, diasVenc, meses){
+    return { id: gerarId(), tipoTreinamento: tipo, numeroCertificado:'CERT-'+Math.floor(Math.random()*9000+1000),
+      dataRealizacao: addDays(diasVenc-(meses*30)), validadeMeses: meses, autoVencimento:false, dataVencimento: addDays(diasVenc),
+      situacaoManual:'', observacoes:'', certificadoArquivo:null };
+  }
+
+  const gente = [
+    { nome:'Carlos Eduardo Santos', matricula:'1001', empresa:'Construtora Alfa', unidade:'Obra Norte', cliente:'Petrobras', contrato:'CT-01', setor:'Manutenção', cargo:'Eletricista', gestor:'Roberto Lima',
+      treinos:[ novoTreino('ASO Periódico', -8, 12), novoTreino('NR-10', 5, 24), novoTreino('NR-35', 200, 24) ] },
+    { nome:'Fernanda Oliveira Costa', matricula:'1002', empresa:'Construtora Alfa', unidade:'Obra Norte', cliente:'Petrobras', contrato:'CT-01', setor:'Segurança', cargo:'Técnica de Segurança', gestor:'Roberto Lima',
+      treinos:[ novoTreino('Integração', 12, 12), novoTreino('NR-35', 25, 24), novoTreino('Primeiros Socorros', 90, 12) ] },
+    { nome:'João Pedro Almeida', matricula:'1003', empresa:'Construtora Alfa', unidade:'Obra Sul', cliente:'Vale', contrato:'CT-02', setor:'Operações', cargo:'Operador de Empilhadeira', gestor:'Marcia Souza',
+      treinos:[ novoTreino('Operador de Empilhadeira', -20, 12), novoTreino('ASO Admissional', 200, 12) ] },
+    { nome:'Ana Paula Ribeiro', matricula:'1004', empresa:'Serviços Beta', unidade:'Unidade Industrial', cliente:'Vale', contrato:'CT-02', setor:'Qualidade', cargo:'Inspetora', gestor:'Marcia Souza',
+      treinos:[ novoTreino('NR-12', 18, 12), novoTreino('ASO Periódico', 55, 12), novoTreino('Brigada de Incêndio', 8, 12) ] },
+    { nome:'Ricardo Nunes Silva', matricula:'1005', empresa:'Serviços Beta', unidade:'Unidade Industrial', cliente:'CSN', contrato:'CT-03', setor:'Manutenção', cargo:'Mecânico', gestor:'Paulo Mendes',
+      treinos:[ novoTreino('NR-11', -3, 12), novoTreino('Trabalho em Altura', 70, 24), novoTreino('Espaço Confinado', 30, 12) ] },
+    { nome:'Bruno Almeida Costa', matricula:'1006', empresa:'Metalúrgica Delta', unidade:'Fábrica A', cliente:'Cliente W', contrato:'CT-04', setor:'Produção', cargo:'Soldador', gestor:'Sandra Reis',
+      treinos:[ novoTreino('NR-12', 40, 12), novoTreino('ASO Admissional', 300, 12) ] },
+    { nome:'Larissa Freitas Melo', matricula:'1007', empresa:'Metalúrgica Delta', unidade:'Fábrica A', cliente:'Cliente W', contrato:'CT-04', setor:'Produção', cargo:'Soldador', gestor:'Sandra Reis',
+      treinos:[ novoTreino('NR-12', 45, 12), novoTreino('ASO Periódico', 100, 12) ] },
+    { nome:'Patrícia Gomes Freitas', matricula:'1008', empresa:'Logística Gama', unidade:'CD Campinas', cliente:'Ambev', contrato:'CT-05', setor:'Segurança', cargo:'Técnica de Segurança', gestor:'Carlos Vieira',
+      treinos:[ novoTreino('NR-35', 400, 24), novoTreino('Primeiros Socorros', 20, 12), novoTreino('ASO Periódico', 3, 12) ] },
+  ];
+  state.records = gente.map(g => ({ id: gerarId(), nome:g.nome, matricula:g.matricula, cpf:'', empresa:g.empresa, unidade:g.unidade, cliente:g.cliente, contrato:g.contrato, centroCusto:'', setor:g.setor, cargo:g.cargo, gestor:g.gestor, treinamentos:g.treinos, documentos:[] }));
+
+  const idPorNome = {};
+  state.records.forEach(c => idPorNome[c.nome] = c.id);
+
+  state.saudeRegistros = [
+    { id:gerarId(), colaboradorId:idPorNome['Ricardo Nunes Silva'], tipo:'afastamento', dataInicio:addDays(-10), dataFim:'', observacoes:'Cirurgia no joelho', anexoArquivo:null, motivo:'Acidente de trabalho', cid:'S83', numeroCat:'', dataAcidente:'', tipoAcidente:'Típico', orgaoNotificado:'', situacaoCat:'Aberta', tipoBeneficio:'', numeroBeneficio:'', situacaoBeneficio:'Ativo', dataPericia:'', funcaoOrigem:'', descricaoRestricao:'' },
+    { id:gerarId(), colaboradorId:idPorNome['João Pedro Almeida'], tipo:'cat', dataInicio:addDays(-40), dataFim:'', observacoes:'Queda de empilhadeira', anexoArquivo:null, motivo:'', cid:'', numeroCat:'CAT-2026-0087', dataAcidente:addDays(-40), tipoAcidente:'Típico', orgaoNotificado:'INSS', situacaoCat:'Em análise', tipoBeneficio:'', numeroBeneficio:'', situacaoBeneficio:'Ativo', dataPericia:'', funcaoOrigem:'', descricaoRestricao:'' },
+    { id:gerarId(), colaboradorId:idPorNome['Carlos Eduardo Santos'], tipo:'beneficio', dataInicio:addDays(-70), dataFim:'', observacoes:'', anexoArquivo:null, motivo:'', cid:'', numeroCat:'', dataAcidente:'', tipoAcidente:'Típico', orgaoNotificado:'', situacaoCat:'Aberta', tipoBeneficio:'Auxílio-doença (B31)', numeroBeneficio:'6178452301', situacaoBeneficio:'Ativo', dataPericia:addDays(20), funcaoOrigem:'', descricaoRestricao:'' },
+    { id:gerarId(), colaboradorId:idPorNome['Ana Paula Ribeiro'], tipo:'restricao', dataInicio:addDays(-5), dataFim:addDays(20), observacoes:'Restrição temporária por LER/DORT', anexoArquivo:null, motivo:'', cid:'', numeroCat:'', dataAcidente:'', tipoAcidente:'Típico', orgaoNotificado:'', situacaoCat:'Aberta', tipoBeneficio:'', numeroBeneficio:'', situacaoBeneficio:'Ativo', dataPericia:'', funcaoOrigem:'Inspetora', descricaoRestricao:'Vedado movimento repetitivo com o braço direito' },
+  ];
+
+  state.turmas = [
+    { id:gerarId(), tipoTreinamento:'NR-35', cargaHoraria:8, vagas:15, dataInicio:addDays(-15), dataFim:addDays(-15), horaInicio:'08:00', horaFim:'17:00', instrutor:'Eng. Marcos Silva', local:'Sala de treinamento - Obra Norte', observacoes:'Turma concluída', cancelada:false,
+      participantes:[ { colaboradorId:idPorNome['Fernanda Oliveira Costa'], presenca:'presente', registrado:true }, { colaboradorId:idPorNome['Patrícia Gomes Freitas'], presenca:'presente', registrado:true } ] },
+    { id:gerarId(), tipoTreinamento:'Trabalho em Altura', cargaHoraria:16, vagas:10, dataInicio:addDays(10), dataFim:addDays(11), horaInicio:'08:00', horaFim:'17:00', instrutor:'Eng. Marcos Silva', local:'Obra Sul', observacoes:'', cancelada:false,
+      participantes:[ { colaboradorId:idPorNome['Ricardo Nunes Silva'], presenca:'pendente', registrado:false }, { colaboradorId:idPorNome['João Pedro Almeida'], presenca:'pendente', registrado:false } ] },
+    { id:gerarId(), tipoTreinamento:'Brigada de Incêndio', cargaHoraria:8, vagas:20, dataInicio:addDays(-60), dataFim:'', horaInicio:'', horaFim:'', instrutor:'', local:'', observacoes:'Cancelada por falta de instrutor', cancelada:true, participantes:[] },
+  ];
+
+  const pgrId1 = gerarId(), itemSolda = gerarId(), itemRuido = gerarId();
+  state.pgrRegistros = [
+    { id:pgrId1, tipoPrograma:'pgr', elaboradoPor:'Eng. Marcos Silva - CREA 12345', dataElaboracao:addDays(-200), dataValidade:addDays(165), observacoes:'PGR vigente da unidade Fábrica A', anexoArquivo:null,
+      inventarioRiscos:[
+        { id:itemSolda, setor:'Produção', funcaoCargo:'Soldador', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim' },
+        { id:itemRuido, setor:'Manutenção', funcaoCargo:'Eletricista', tipoAgente:'fisico', descricaoAgente:'Ruído', intensidadeConcentracao:'87 dB(A)', tecnicaUtilizada:'NHO-01', epcEficaz:'sim', epiEficaz:'sim' },
+      ] },
+    { id:gerarId(), tipoPrograma:'ppra', elaboradoPor:'Dra. Camila Rocha - CRM 54321', dataElaboracao:addDays(-900), dataValidade:addDays(-540), observacoes:'PPRA histórico, substituído pelo PGR atual', anexoArquivo:null,
+      inventarioRiscos:[
+        { id:gerarId(), setor:'Manutenção', funcaoCargo:'Mecânico', tipoAgente:'fisico', descricaoAgente:'Vibração', intensidadeConcentracao:'', tecnicaUtilizada:'', epcEficaz:'na', epiEficaz:'sim' },
+      ] },
+  ];
+
+  // PPPs equivalentes ao que "Gerar PPP para todos os colaboradores" geraria
+  // a partir do PGR acima, já vinculados (origemPgrId/origemPgrItemId) —
+  // montados diretamente aqui para não depender de renderAll() durante o
+  // carregamento inicial da página.
+  state.pppRegistros = [
+    { id:gerarId(), colaboradorId:idPorNome['Bruno Almeida Costa'], cargoFuncao:'Soldador', setorLocal:'Produção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemSolda },
+    { id:gerarId(), colaboradorId:idPorNome['Larissa Freitas Melo'], cargoFuncao:'Soldador', setorLocal:'Produção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemSolda },
+    { id:gerarId(), colaboradorId:idPorNome['Carlos Eduardo Santos'], cargoFuncao:'Eletricista', setorLocal:'Manutenção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'fisico', descricaoAgente:'Ruído', intensidadeConcentracao:'87 dB(A)', tecnicaUtilizada:'NHO-01', epcEficaz:'sim', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemRuido },
+    { id:gerarId(), colaboradorId:idPorNome['Ricardo Nunes Silva'], cargoFuncao:'Mecânico', setorLocal:'Manutenção', dataInicio:addDays(-400), dataFim:addDays(-30), tipoAgente:'fisico', descricaoAgente:'Vibração de corpo inteiro', intensidadeConcentracao:'', tecnicaUtilizada:'', epcEficaz:'na', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva', responsavelBiologico:'Dra. Camila Rocha - CRM 54321', dataEmissaoPPP:addDays(-25), observacoes:'PPP emitido por ocasião de mudança de função' },
+  ];
+}
 
 function normalizarTexto(txt){
   return String(txt || '')
