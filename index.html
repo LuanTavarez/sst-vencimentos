@@ -879,6 +879,16 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
       </div>
       <div id="r-treinamentos-list" class="mt-3 space-y-3"></div>
 
+      <div class="flex items-center justify-between mt-6 pt-4" style="border-top:1px dashed var(--border);">
+        <div>
+          <p class="field-label !mb-0.5" style="color:var(--primary);">Pasta de documentos do colaborador</p>
+          <p class="text-xs" style="color:var(--ink-soft);">Documentos gerais (RG, CTPS, contrato, comprovante de residência...), não vinculados a um treinamento específico. Pode selecionar vários arquivos de uma vez.</p>
+        </div>
+        <label class="btn btn-outline flex-shrink-0" for="r-documentos-file"><i class="fa-solid fa-folder-plus"></i> Anexar arquivo(s)</label>
+        <input type="file" id="r-documentos-file" multiple accept=".pdf,image/*,.doc,.docx" class="hidden" onchange="onDocumentosGeraisSelect(event)">
+      </div>
+      <div id="r-documentos-list" class="mt-3 space-y-2"></div>
+
       <div class="flex justify-end gap-2 mt-6 pt-4" style="border-top:1px solid var(--border);">
         <button type="button" class="btn btn-outline" onclick="closeRecordModal()">Cancelar</button>
         <button type="submit" class="btn btn-primary">Salvar registro do colaborador</button>
@@ -2017,7 +2027,7 @@ function renderMatrixBody(colaboradores, colunas){
     linha += `<td class="matrix-col-fixa">
       <div class="flex items-center justify-between gap-2">
         <div class="min-w-0 cursor-pointer" onclick="openRecordModal('${c.id}')" title="Editar dados do colaborador">
-          <p class="font-semibold truncate">${escapeHtml(c.nome)}</p>
+          <p class="font-semibold truncate">${escapeHtml(c.nome)} ${(c.documentos||[]).length ? `<i class="fa-solid fa-paperclip" style="font-size:.68rem; color:var(--ink-faint);" title="${(c.documentos||[]).length} documento(s) na pasta"></i>` : ''}</p>
           <p class="text-xs truncate" style="color:var(--ink-soft);">${escapeHtml(c.matricula)} · ${escapeHtml(c.empresa)}</p>
         </div>
         <button class="btn btn-ghost !p-1 no-print flex-shrink-0" title="Excluir colaborador" style="color:var(--vermelho);" onclick="pedirExclusaoColaborador('${c.id}')"><i class="fa-solid fa-trash"></i></button>
@@ -2184,6 +2194,9 @@ function renderAlertas(){
 // modal de detalhe de um único tipo, aberto a partir da célula da grade).
 state.modalTreinamentos = [];
 state.modalContainerId = 'r-treinamentos-list';
+// Documentos gerais do colaborador (pasta), não vinculados a um treinamento
+// específico — editados enquanto o modal de cadastro está aberto.
+state.modalDocumentos = [];
 
 function opcoesTipoTreinamento(selecionado){
   return listaTipos().map(t => `<option value="${escapeHtml(t.nome)}" ${t.nome===selecionado?'selected':''}>${escapeHtml(t.nome)}</option>`).join('')
@@ -2367,13 +2380,16 @@ function openRecordModal(colaboradorId){
     document.getElementById('r-cargo').value = c.cargo || '';
     document.getElementById('r-gestor').value = c.gestor || '';
     state.modalTreinamentos = JSON.parse(JSON.stringify(c.treinamentos || []));
+    state.modalDocumentos = JSON.parse(JSON.stringify(c.documentos || []));
   } else {
     document.getElementById('modal-registro-title').textContent = 'Novo registro de colaborador';
     document.getElementById('r-id').value = '';
     state.modalTreinamentos = [ novoTreinamentoVazio() ];
+    state.modalDocumentos = [];
   }
   popularFiltros(); // garante datalists atualizadas
   renderModalTreinamentos();
+  renderDocumentosGeraisList();
   document.getElementById('modal-registro').classList.remove('hidden');
 }
 
@@ -2441,12 +2457,86 @@ function salvarRegistro(evt){
       observacoes: (t.observacoes||'').trim(),
       certificadoArquivo: t.certificadoArquivo || null,
     })),
+    documentos: state.modalDocumentos.map(d => ({
+      id: d.id || gerarId(),
+      descricao: (d.descricao||'').trim(),
+      nomeArquivo: d.nomeArquivo,
+      dataUrl: d.dataUrl,
+      tamanho: d.tamanho || 0,
+    })),
   };
   const idx = state.records.findIndex(x => x.id === id);
   if(idx >= 0) state.records[idx] = colaborador; else state.records.push(colaborador);
   if(salvarStorage()) showToast('Registro salvo com sucesso.', 'sucesso');
   closeRecordModal();
   renderAll();
+}
+
+/* --------------------------------------------------------------------
+   13b. PASTA DE DOCUMENTOS GERAIS DO COLABORADOR
+   Documentos diversos (RG, CTPS, contrato, comprovante de residência...)
+   anexados ao colaborador, sem vínculo com um treinamento específico.
+   Suporta anexar vários arquivos de uma só vez.
+   -------------------------------------------------------------------- */
+function renderDocumentosGeraisList(){
+  const cont = document.getElementById('r-documentos-list');
+  if(!state.modalDocumentos.length){
+    cont.innerHTML = `<p class="text-xs italic px-1" style="color:var(--ink-soft);">Nenhum documento anexado ainda.</p>`;
+    return;
+  }
+  cont.innerHTML = state.modalDocumentos.map((d, idx) => `
+    <div class="flex items-center gap-2 rounded-lg px-3 py-2" style="border:1px solid var(--border); background:var(--surface-2);">
+      <i class="fa-solid fa-file-lines flex-shrink-0" style="color:var(--secondary);"></i>
+      <input class="field-input !py-1.5" style="flex:1;" value="${escapeHtml(d.descricao||'')}" placeholder="Descrição (ex: RG, CTPS, Contrato...)" oninput="atualizarDescricaoDocumento(${idx}, this.value)">
+      <a href="${d.dataUrl}" download="${escapeHtml(d.nomeArquivo)}" class="tag-pill flex-shrink-0" style="color:var(--secondary);" title="${escapeHtml(d.nomeArquivo)}"><i class="fa-solid fa-download"></i> ${escapeHtml(d.nomeArquivo && d.nomeArquivo.length > 22 ? d.nomeArquivo.slice(0,19)+'…' : (d.nomeArquivo||''))}</a>
+      <button type="button" class="btn btn-ghost !p-1.5 flex-shrink-0" style="color:var(--vermelho);" title="Remover documento" onclick="removerDocumentoGeral(${idx})"><i class="fa-solid fa-xmark"></i></button>
+    </div>`).join('');
+}
+
+function atualizarDescricaoDocumento(idx, valor){
+  if(state.modalDocumentos[idx]) state.modalDocumentos[idx].descricao = valor;
+}
+
+function removerDocumentoGeral(idx){
+  const d = state.modalDocumentos[idx];
+  if(!d) return;
+  abrirConfirmacao(
+    'Remover este documento?',
+    `Remover "${d.descricao || d.nomeArquivo}" da pasta? Isso não afeta dados já salvos — só é gravado de fato se você clicar em Salvar depois.`,
+    () => { state.modalDocumentos.splice(idx, 1); renderDocumentosGeraisList(); },
+    { confirmLabel:'Remover' }
+  );
+}
+
+// Lê vários arquivos selecionados de uma vez (input multiple) e os anexa à
+// pasta do colaborador em memória, respeitando o mesmo limite de tamanho
+// usado para certificados de treinamento (~1,8 MB por arquivo).
+function onDocumentosGeraisSelect(evt){
+  const arquivos = Array.from(evt.target.files || []);
+  if(!arquivos.length) return;
+  const LIMITE = 1.8 * 1024 * 1024;
+  const grandes = arquivos.filter(f => f.size > LIMITE);
+  const validos = arquivos.filter(f => f.size <= LIMITE);
+  if(grandes.length){
+    showToast(`${grandes.length} arquivo(s) muito grande(s) (limite ~1,8 MB cada) foram ignorados: ${grandes.map(f=>f.name).join(', ')}`, 'aviso');
+  }
+  if(!validos.length){ evt.target.value = ''; return; }
+  let pendentes = validos.length;
+  validos.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      state.modalDocumentos.push({
+        id: gerarId(),
+        descricao: file.name.replace(/\.[^.]+$/, ''),
+        nomeArquivo: file.name,
+        dataUrl: e.target.result,
+        tamanho: file.size,
+      });
+      pendentes--;
+      if(pendentes === 0){ renderDocumentosGeraisList(); evt.target.value = ''; }
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 /* --------------------------------------------------------------------
