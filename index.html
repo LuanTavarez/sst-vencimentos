@@ -1262,10 +1262,13 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
 
       <div class="mt-3"><label class="field-label">Observações</label><textarea id="sd-observacoes" class="field-input" rows="2"></textarea></div>
 
-      <div class="mt-3 flex items-center gap-2 flex-wrap">
-        <label class="btn btn-outline !py-1.5" style="font-size:.72rem;" for="sd-anexo-file"><i class="fa-solid fa-paperclip"></i> Anexar documento (laudo, CAT, atestado...)</label>
-        <input type="file" id="sd-anexo-file" accept=".pdf,image/*" class="hidden" onchange="onSaudeAnexoSelect(this)">
-        <span id="sd-anexo-info"><span class="text-xs" style="color:var(--ink-faint);">Nenhum arquivo anexado</span></span>
+      <div class="mt-3">
+        <label class="field-label">Pasta de documentos (laudo, CAT, atestado...)</label>
+        <div class="flex items-center gap-2 flex-wrap mb-2">
+          <label class="btn btn-outline !py-1.5" style="font-size:.72rem;" for="sd-pasta-file"><i class="fa-solid fa-folder-plus"></i> Adicionar documento(s)</label>
+          <input type="file" id="sd-pasta-file" accept=".pdf,image/*" multiple class="hidden" onchange="onPastaDocumentosSelect('saude','sd-pasta-lista',event)">
+        </div>
+        <div id="sd-pasta-lista" class="flex flex-col gap-1.5"></div>
       </div>
 
       <div class="flex items-center justify-between gap-2 mt-6 pt-4" style="border-top:1px solid var(--border);">
@@ -1430,12 +1433,12 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
       <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-3">
         <div><label class="field-label">Validade / próxima revisão</label><input type="date" id="pgr-data-validade" class="field-input"></div>
         <div class="md:col-span-3">
-          <label class="field-label">Documento (PDF)</label>
-          <div class="flex items-center gap-2 flex-wrap">
-            <label class="btn btn-outline !py-1.5" style="font-size:.72rem;" for="pgr-anexo-file"><i class="fa-solid fa-paperclip"></i> Anexar documento</label>
-            <input type="file" id="pgr-anexo-file" accept=".pdf,image/*" class="hidden" onchange="onPgrAnexoSelect(this)">
-            <span id="pgr-anexo-info"><span class="text-xs" style="color:var(--ink-faint);">Nenhum arquivo anexado</span></span>
+          <label class="field-label">Pasta de documentos (PGR, PPRA, laudos, anexos técnicos...)</label>
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            <label class="btn btn-outline !py-1.5" style="font-size:.72rem;" for="pgr-pasta-file"><i class="fa-solid fa-folder-plus"></i> Adicionar documento(s)</label>
+            <input type="file" id="pgr-pasta-file" accept=".pdf,image/*" multiple class="hidden" onchange="onPastaDocumentosSelect('pgr','pgr-pasta-lista',event)">
           </div>
+          <div id="pgr-pasta-lista" class="flex flex-col gap-1.5"></div>
         </div>
       </div>
 
@@ -1544,6 +1547,15 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
       </div>
 
       <div class="mt-3"><label class="field-label">Observações</label><textarea id="ppp-observacoes" class="field-input" rows="2"></textarea></div>
+
+      <div class="mt-3">
+        <label class="field-label">Pasta de documentos (PPP emitido, LTCAT, históricos...)</label>
+        <div class="flex items-center gap-2 flex-wrap mb-2">
+          <label class="btn btn-outline !py-1.5" style="font-size:.72rem;" for="ppp-pasta-file"><i class="fa-solid fa-folder-plus"></i> Adicionar documento(s)</label>
+          <input type="file" id="ppp-pasta-file" accept=".pdf,image/*" multiple class="hidden" onchange="onPastaDocumentosSelect('ppp','ppp-pasta-lista',event)">
+        </div>
+        <div id="ppp-pasta-lista" class="flex flex-col gap-1.5"></div>
+      </div>
 
       <div class="flex items-center justify-between gap-2 mt-6 pt-4" style="border-top:1px solid var(--border);">
         <button type="button" class="btn btn-danger hidden" id="ppp-btn-excluir" onclick="pedirExclusaoPpp()"><i class="fa-solid fa-trash"></i> Excluir registro</button>
@@ -1728,6 +1740,34 @@ function carregarStorage(){
    -------------------------------------------------------------------- */
 function gerarId(){ return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 
+// Gera um PDF simples (texto) em memória via jsPDF, só para os dados de
+// demonstração terem um arquivo de verdade pra abrir/baixar — não é um
+// documento real, é só pra provar que os botões de anexo funcionam.
+function gerarPdfSimulado(titulo, linhas){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'a4' });
+  doc.setFontSize(16);
+  doc.text(String(titulo), 40, 50);
+  doc.setDrawColor(180);
+  doc.line(40, 62, 555, 62);
+  doc.setFontSize(9);
+  doc.setTextColor(140);
+  doc.text('Documento simulado, gerado automaticamente para demonstração do sistema.', 40, 78);
+  doc.setTextColor(30);
+  doc.setFontSize(11);
+  let y = 108;
+  (linhas||[]).forEach(l => { doc.text(String(l), 40, y); y += 20; });
+  return doc.output('datauristring');
+}
+// Versão para campos de anexo único ({nome, dataUrl}).
+function docSimulado(nomeArquivo, titulo, linhas){
+  return { nome: nomeArquivo, dataUrl: gerarPdfSimulado(titulo, linhas) };
+}
+// Versão para pastas de documentos (array de {id, descricao, nomeArquivo, dataUrl, tamanho}).
+function docPastaSimulado(nomeArquivo, titulo, linhas){
+  return { id: gerarId(), descricao: titulo, nomeArquivo, dataUrl: gerarPdfSimulado(titulo, linhas), tamanho: 0 };
+}
+
 // Dados de demonstração/teste carregados automaticamente no primeiro acesso
 // (ver carregarStorage). Cobre colaboradores com documentos em todos os
 // status, Saúde/INSS, agenda de Treinamentos, PGR/PPRA com inventário de
@@ -1737,9 +1777,15 @@ function semearDadosDemonstracao(){
   const hoje = new Date();
   function addDays(dias){ const d = new Date(hoje); d.setDate(d.getDate()+dias); return formatarDataISO(d); }
   function novoTreino(tipo, diasVenc, meses){
-    return { id: gerarId(), tipoTreinamento: tipo, numeroCertificado:'CERT-'+Math.floor(Math.random()*9000+1000),
-      dataRealizacao: addDays(diasVenc-(meses*30)), validadeMeses: meses, autoVencimento:false, dataVencimento: addDays(diasVenc),
-      situacaoManual:'', observacoes:'', certificadoArquivo:null };
+    const numero = 'CERT-'+Math.floor(Math.random()*9000+1000);
+    const dataRealizacao = addDays(diasVenc-(meses*30));
+    const dataVencimento = addDays(diasVenc);
+    return { id: gerarId(), tipoTreinamento: tipo, numeroCertificado:numero,
+      dataRealizacao, validadeMeses: meses, autoVencimento:false, dataVencimento,
+      situacaoManual:'', observacoes:'',
+      certificadoArquivo: docSimulado(`certificado-${tipo.replace(/[^a-z0-9]+/ig,'-').toLowerCase()}.pdf`, `Certificado de Treinamento — ${tipo}`, [
+        `Número do certificado: ${numero}`, `Data de realização: ${formatarDataBR(dataRealizacao)}`, `Validade: ${meses} meses`, `Vencimento: ${formatarDataBR(dataVencimento)}`,
+      ]) };
   }
 
   const gente = [
@@ -1760,16 +1806,23 @@ function semearDadosDemonstracao(){
     { nome:'Patrícia Gomes Freitas', matricula:'1008', empresa:'Logística Gama', unidade:'CD Campinas', cliente:'Ambev', contrato:'CT-05', setor:'Segurança', cargo:'Técnica de Segurança', gestor:'Carlos Vieira',
       treinos:[ novoTreino('NR-35', 400, 24), novoTreino('Primeiros Socorros', 20, 12), novoTreino('ASO Periódico', 3, 12) ] },
   ];
-  state.records = gente.map(g => ({ id: gerarId(), nome:g.nome, matricula:g.matricula, cpf:'', empresa:g.empresa, unidade:g.unidade, cliente:g.cliente, contrato:g.contrato, centroCusto:'', setor:g.setor, cargo:g.cargo, gestor:g.gestor, treinamentos:g.treinos, documentos:[] }));
+  state.records = gente.map(g => ({ id: gerarId(), nome:g.nome, matricula:g.matricula, cpf:'', empresa:g.empresa, unidade:g.unidade, cliente:g.cliente, contrato:g.contrato, centroCusto:'', setor:g.setor, cargo:g.cargo, gestor:g.gestor, treinamentos:g.treinos,
+    documentos:[ docPastaSimulado(`ficha-registro-${g.matricula}.pdf`, 'Ficha de Registro do Colaborador', [
+      `Nome: ${g.nome}`, `Matrícula: ${g.matricula}`, `Empresa: ${g.empresa}`, `Setor: ${g.setor}`, `Cargo: ${g.cargo}`, `Gestor: ${g.gestor}`,
+    ]) ] }));
 
   const idPorNome = {};
   state.records.forEach(c => idPorNome[c.nome] = c.id);
 
   state.saudeRegistros = [
-    { id:gerarId(), colaboradorId:idPorNome['Ricardo Nunes Silva'], tipo:'afastamento', dataInicio:addDays(-10), dataFim:'', observacoes:'Cirurgia no joelho', anexoArquivo:null, motivo:'Acidente de trabalho', cid:'S83', numeroCat:'', dataAcidente:'', tipoAcidente:'Típico', orgaoNotificado:'', situacaoCat:'Aberta', tipoBeneficio:'', numeroBeneficio:'', situacaoBeneficio:'Ativo', dataPericia:'', funcaoOrigem:'', descricaoRestricao:'' },
-    { id:gerarId(), colaboradorId:idPorNome['João Pedro Almeida'], tipo:'cat', dataInicio:addDays(-40), dataFim:'', observacoes:'Queda de empilhadeira', anexoArquivo:null, motivo:'', cid:'', numeroCat:'CAT-2026-0087', dataAcidente:addDays(-40), tipoAcidente:'Típico', orgaoNotificado:'INSS', situacaoCat:'Em análise', tipoBeneficio:'', numeroBeneficio:'', situacaoBeneficio:'Ativo', dataPericia:'', funcaoOrigem:'', descricaoRestricao:'' },
-    { id:gerarId(), colaboradorId:idPorNome['Carlos Eduardo Santos'], tipo:'beneficio', dataInicio:addDays(-70), dataFim:'', observacoes:'', anexoArquivo:null, motivo:'', cid:'', numeroCat:'', dataAcidente:'', tipoAcidente:'Típico', orgaoNotificado:'', situacaoCat:'Aberta', tipoBeneficio:'Auxílio-doença (B31)', numeroBeneficio:'6178452301', situacaoBeneficio:'Ativo', dataPericia:addDays(20), funcaoOrigem:'', descricaoRestricao:'' },
-    { id:gerarId(), colaboradorId:idPorNome['Ana Paula Ribeiro'], tipo:'restricao', dataInicio:addDays(-5), dataFim:addDays(20), observacoes:'Restrição temporária por LER/DORT', anexoArquivo:null, motivo:'', cid:'', numeroCat:'', dataAcidente:'', tipoAcidente:'Típico', orgaoNotificado:'', situacaoCat:'Aberta', tipoBeneficio:'', numeroBeneficio:'', situacaoBeneficio:'Ativo', dataPericia:'', funcaoOrigem:'Inspetora', descricaoRestricao:'Vedado movimento repetitivo com o braço direito' },
+    { id:gerarId(), colaboradorId:idPorNome['Ricardo Nunes Silva'], tipo:'afastamento', dataInicio:addDays(-10), dataFim:'', observacoes:'Cirurgia no joelho', motivo:'Acidente de trabalho', cid:'S83', numeroCat:'', dataAcidente:'', tipoAcidente:'Típico', orgaoNotificado:'', situacaoCat:'Aberta', tipoBeneficio:'', numeroBeneficio:'', situacaoBeneficio:'Ativo', dataPericia:'', funcaoOrigem:'', descricaoRestricao:'',
+      documentos:[ docPastaSimulado('atestado-medico-ricardo.pdf', 'Atestado Médico', ['Colaborador: Ricardo Nunes Silva', 'Motivo: Cirurgia no joelho', `Início do afastamento: ${formatarDataBR(addDays(-10))}`, 'CID: S83']) ] },
+    { id:gerarId(), colaboradorId:idPorNome['João Pedro Almeida'], tipo:'cat', dataInicio:addDays(-40), dataFim:'', observacoes:'Queda de empilhadeira', motivo:'', cid:'', numeroCat:'CAT-2026-0087', dataAcidente:addDays(-40), tipoAcidente:'Típico', orgaoNotificado:'INSS', situacaoCat:'Em análise', tipoBeneficio:'', numeroBeneficio:'', situacaoBeneficio:'Ativo', dataPericia:'', funcaoOrigem:'', descricaoRestricao:'',
+      documentos:[ docPastaSimulado('cat-2026-0087.pdf', 'Comunicação de Acidente de Trabalho (CAT)', ['Colaborador: João Pedro Almeida', 'Número da CAT: CAT-2026-0087', `Data do acidente: ${formatarDataBR(addDays(-40))}`, 'Tipo: Típico', 'Órgão notificado: INSS', 'Situação: Em análise']) ] },
+    { id:gerarId(), colaboradorId:idPorNome['Carlos Eduardo Santos'], tipo:'beneficio', dataInicio:addDays(-70), dataFim:'', observacoes:'', motivo:'', cid:'', numeroCat:'', dataAcidente:'', tipoAcidente:'Típico', orgaoNotificado:'', situacaoCat:'Aberta', tipoBeneficio:'Auxílio-doença (B31)', numeroBeneficio:'6178452301', situacaoBeneficio:'Ativo', dataPericia:addDays(20), funcaoOrigem:'', descricaoRestricao:'',
+      documentos:[ docPastaSimulado('carta-beneficio-carlos.pdf', 'Carta de Concessão de Benefício INSS', ['Colaborador: Carlos Eduardo Santos', 'Benefício: Auxílio-doença (B31)', 'Número: 6178452301', `Data da perícia: ${formatarDataBR(addDays(20))}`]) ] },
+    { id:gerarId(), colaboradorId:idPorNome['Ana Paula Ribeiro'], tipo:'restricao', dataInicio:addDays(-5), dataFim:addDays(20), observacoes:'Restrição temporária por LER/DORT', motivo:'', cid:'', numeroCat:'', dataAcidente:'', tipoAcidente:'Típico', orgaoNotificado:'', situacaoCat:'Aberta', tipoBeneficio:'', numeroBeneficio:'', situacaoBeneficio:'Ativo', dataPericia:'', funcaoOrigem:'Inspetora', descricaoRestricao:'Vedado movimento repetitivo com o braço direito',
+      documentos:[ docPastaSimulado('laudo-readaptacao-ana.pdf', 'Laudo de Restrição / Readaptação de Função', ['Colaboradora: Ana Paula Ribeiro', 'Função de origem: Inspetora', 'Restrição: Vedado movimento repetitivo com o braço direito', `Válida até: ${formatarDataBR(addDays(20))}`]) ] },
   ];
 
   state.turmas = [
@@ -1782,15 +1835,17 @@ function semearDadosDemonstracao(){
 
   const pgrId1 = gerarId(), itemSolda = gerarId(), itemRuido = gerarId();
   state.pgrRegistros = [
-    { id:pgrId1, tipoPrograma:'pgr', elaboradoPor:'Eng. Marcos Silva - CREA 12345', dataElaboracao:addDays(-200), dataValidade:addDays(165), observacoes:'PGR vigente da unidade Fábrica A', anexoArquivo:null,
+    { id:pgrId1, tipoPrograma:'pgr', elaboradoPor:'Eng. Marcos Silva - CREA 12345', dataElaboracao:addDays(-200), dataValidade:addDays(165), observacoes:'PGR vigente da unidade Fábrica A',
       inventarioRiscos:[
         { id:itemSolda, setor:'Produção', funcaoCargo:'Soldador', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim' },
         { id:itemRuido, setor:'Manutenção', funcaoCargo:'Eletricista', tipoAgente:'fisico', descricaoAgente:'Ruído', intensidadeConcentracao:'87 dB(A)', tecnicaUtilizada:'NHO-01', epcEficaz:'sim', epiEficaz:'sim' },
-      ] },
-    { id:gerarId(), tipoPrograma:'ppra', elaboradoPor:'Dra. Camila Rocha - CRM 54321', dataElaboracao:addDays(-900), dataValidade:addDays(-540), observacoes:'PPRA histórico, substituído pelo PGR atual', anexoArquivo:null,
+      ],
+      documentos:[ docPastaSimulado('pgr-fabrica-a.pdf', 'Programa de Gerenciamento de Riscos (PGR)', ['Unidade: Fábrica A', 'Elaborado por: Eng. Marcos Silva - CREA 12345', `Elaboração: ${formatarDataBR(addDays(-200))}`, `Validade: ${formatarDataBR(addDays(165))}`]) ] },
+    { id:gerarId(), tipoPrograma:'ppra', elaboradoPor:'Dra. Camila Rocha - CRM 54321', dataElaboracao:addDays(-900), dataValidade:addDays(-540), observacoes:'PPRA histórico, substituído pelo PGR atual',
       inventarioRiscos:[
         { id:gerarId(), setor:'Manutenção', funcaoCargo:'Mecânico', tipoAgente:'fisico', descricaoAgente:'Vibração', intensidadeConcentracao:'', tecnicaUtilizada:'', epcEficaz:'na', epiEficaz:'sim' },
-      ] },
+      ],
+      documentos:[ docPastaSimulado('ppra-historico.pdf', 'Programa de Prevenção de Riscos Ambientais (PPRA)', ['Documento histórico, substituído pelo PGR vigente', 'Elaborado por: Dra. Camila Rocha - CRM 54321', `Elaboração: ${formatarDataBR(addDays(-900))}`]) ] },
   ];
 
   // PPPs equivalentes ao que "Gerar PPP para todos os colaboradores" geraria
@@ -1798,10 +1853,14 @@ function semearDadosDemonstracao(){
   // montados diretamente aqui para não depender de renderAll() durante o
   // carregamento inicial da página.
   state.pppRegistros = [
-    { id:gerarId(), colaboradorId:idPorNome['Bruno Almeida Costa'], cargoFuncao:'Soldador', setorLocal:'Produção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemSolda },
-    { id:gerarId(), colaboradorId:idPorNome['Larissa Freitas Melo'], cargoFuncao:'Soldador', setorLocal:'Produção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemSolda },
-    { id:gerarId(), colaboradorId:idPorNome['Carlos Eduardo Santos'], cargoFuncao:'Eletricista', setorLocal:'Manutenção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'fisico', descricaoAgente:'Ruído', intensidadeConcentracao:'87 dB(A)', tecnicaUtilizada:'NHO-01', epcEficaz:'sim', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemRuido },
-    { id:gerarId(), colaboradorId:idPorNome['Ricardo Nunes Silva'], cargoFuncao:'Mecânico', setorLocal:'Manutenção', dataInicio:addDays(-400), dataFim:addDays(-30), tipoAgente:'fisico', descricaoAgente:'Vibração de corpo inteiro', intensidadeConcentracao:'', tecnicaUtilizada:'', epcEficaz:'na', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva', responsavelBiologico:'Dra. Camila Rocha - CRM 54321', dataEmissaoPPP:addDays(-25), observacoes:'PPP emitido por ocasião de mudança de função' },
+    { id:gerarId(), colaboradorId:idPorNome['Bruno Almeida Costa'], cargoFuncao:'Soldador', setorLocal:'Produção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemSolda,
+      documentos:[ docPastaSimulado('laudo-exposicao-bruno.pdf', 'Laudo Técnico de Exposição a Agentes Nocivos', ['Colaborador: Bruno Almeida Costa', 'Agente: Fumos de solda', 'Origem: PGR - Fábrica A']) ] },
+    { id:gerarId(), colaboradorId:idPorNome['Larissa Freitas Melo'], cargoFuncao:'Soldador', setorLocal:'Produção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemSolda,
+      documentos:[ docPastaSimulado('laudo-exposicao-larissa.pdf', 'Laudo Técnico de Exposição a Agentes Nocivos', ['Colaboradora: Larissa Freitas Melo', 'Agente: Fumos de solda', 'Origem: PGR - Fábrica A']) ] },
+    { id:gerarId(), colaboradorId:idPorNome['Carlos Eduardo Santos'], cargoFuncao:'Eletricista', setorLocal:'Manutenção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'fisico', descricaoAgente:'Ruído', intensidadeConcentracao:'87 dB(A)', tecnicaUtilizada:'NHO-01', epcEficaz:'sim', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemRuido,
+      documentos:[ docPastaSimulado('laudo-exposicao-carlos.pdf', 'Laudo Técnico de Exposição a Agentes Nocivos', ['Colaborador: Carlos Eduardo Santos', 'Agente: Ruído — 87 dB(A)', 'Origem: PGR - Fábrica A']) ] },
+    { id:gerarId(), colaboradorId:idPorNome['Ricardo Nunes Silva'], cargoFuncao:'Mecânico', setorLocal:'Manutenção', dataInicio:addDays(-400), dataFim:addDays(-30), tipoAgente:'fisico', descricaoAgente:'Vibração de corpo inteiro', intensidadeConcentracao:'', tecnicaUtilizada:'', epcEficaz:'na', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva', responsavelBiologico:'Dra. Camila Rocha - CRM 54321', dataEmissaoPPP:addDays(-25), observacoes:'PPP emitido por ocasião de mudança de função',
+      documentos:[ docPastaSimulado('ppp-emitido-ricardo.pdf', 'Perfil Profissiográfico Previdenciário (PPP)', ['Colaborador: Ricardo Nunes Silva', 'Cargo: Mecânico', `Emissão: ${formatarDataBR(addDays(-25))}`, 'Responsável biológico: Dra. Camila Rocha - CRM 54321']) ] },
   ];
 }
 
@@ -2959,6 +3018,74 @@ function onDocumentosGeraisSelect(evt){
       });
       pendentes--;
       if(pendentes === 0){ renderDocumentosGeraisList(); evt.target.value = ''; }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* --------------------------------------------------------------------
+   13c. PASTA DE DOCUMENTOS GENÉRICA — mesmo padrão da pasta do colaborador
+   (13b), reaproveitado nos modais de PGR/PPRA, PPP e Saúde/INSS. Cada
+   instância guarda sua lista temporária em pastasDocumentosTemp[chave]
+   enquanto o modal correspondente está aberto.
+   -------------------------------------------------------------------- */
+let pastasDocumentosTemp = { pgr: [], ppp: [], saude: [] };
+
+function renderPastaDocumentos(chave, containerId){
+  const cont = document.getElementById(containerId);
+  if(!cont) return;
+  const lista = pastasDocumentosTemp[chave] || [];
+  if(!lista.length){
+    cont.innerHTML = `<p class="text-xs italic px-1" style="color:var(--ink-soft);">Nenhum documento anexado ainda.</p>`;
+    return;
+  }
+  cont.innerHTML = lista.map((d, idx) => `
+    <div class="flex items-center gap-2 rounded-lg px-3 py-2" style="border:1px solid var(--border); background:var(--surface-2);">
+      <i class="fa-solid fa-file-lines flex-shrink-0" style="color:var(--secondary);"></i>
+      <input class="field-input !py-1.5" style="flex:1;" value="${escapeHtml(d.descricao||'')}" placeholder="Descrição do documento" oninput="atualizarDescricaoPastaDocumento('${chave}', ${idx}, this.value)">
+      <a href="${d.dataUrl}" download="${escapeHtml(d.nomeArquivo)}" class="tag-pill flex-shrink-0" style="color:var(--secondary);" title="${escapeHtml(d.nomeArquivo)}"><i class="fa-solid fa-download"></i> ${escapeHtml(d.nomeArquivo && d.nomeArquivo.length > 22 ? d.nomeArquivo.slice(0,19)+'…' : (d.nomeArquivo||''))}</a>
+      <button type="button" class="btn btn-ghost !p-1.5 flex-shrink-0" style="color:var(--vermelho);" title="Remover documento" onclick="removerDocumentoPasta('${chave}', ${idx}, '${containerId}')"><i class="fa-solid fa-xmark"></i></button>
+    </div>`).join('');
+}
+
+function atualizarDescricaoPastaDocumento(chave, idx, valor){
+  if(pastasDocumentosTemp[chave] && pastasDocumentosTemp[chave][idx]) pastasDocumentosTemp[chave][idx].descricao = valor;
+}
+
+function removerDocumentoPasta(chave, idx, containerId){
+  const d = pastasDocumentosTemp[chave] && pastasDocumentosTemp[chave][idx];
+  if(!d) return;
+  abrirConfirmacao(
+    'Remover este documento?',
+    `Remover "${d.descricao || d.nomeArquivo}" da pasta? Isso não afeta dados já salvos — só é gravado de fato se você clicar em Salvar depois.`,
+    () => { pastasDocumentosTemp[chave].splice(idx, 1); renderPastaDocumentos(chave, containerId); },
+    { confirmLabel:'Remover' }
+  );
+}
+
+// Lê vários arquivos de uma vez (input multiple) e os anexa à pasta
+// identificada por `chave`, respeitando o mesmo limite de ~1,8 MB por
+// arquivo usado nos demais anexos do sistema.
+function onPastaDocumentosSelect(chave, containerId, evt){
+  const arquivos = Array.from(evt.target.files || []);
+  if(!arquivos.length) return;
+  const LIMITE = 1.8 * 1024 * 1024;
+  const grandes = arquivos.filter(f => f.size > LIMITE);
+  const validos = arquivos.filter(f => f.size <= LIMITE);
+  if(grandes.length){
+    showToast(`${grandes.length} arquivo(s) muito grande(s) (limite ~1,8 MB cada) foram ignorados: ${grandes.map(f=>f.name).join(', ')}`, 'aviso');
+  }
+  if(!validos.length){ evt.target.value = ''; return; }
+  if(!pastasDocumentosTemp[chave]) pastasDocumentosTemp[chave] = [];
+  let pendentes = validos.length;
+  validos.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      pastasDocumentosTemp[chave].push({
+        id: gerarId(), descricao: file.name.replace(/\.[^.]+$/, ''), nomeArquivo: file.name, dataUrl: e.target.result, tamanho: file.size,
+      });
+      pendentes--;
+      if(pendentes === 0){ renderPastaDocumentos(chave, containerId); evt.target.value = ''; }
     };
     reader.readAsDataURL(file);
   });
@@ -4154,36 +4281,11 @@ function onSaudeTipoChange(){
   document.getElementById('sd-label-data-fim').textContent = labels.fim;
 }
 
-let saudeAnexoAtual = null;
-function renderSaudeAnexoInfo(){
-  const cont = document.getElementById('sd-anexo-info');
-  cont.innerHTML = saudeAnexoAtual
-    ? `<a href="${saudeAnexoAtual.dataUrl}" download="${escapeHtml(saudeAnexoAtual.nome)}" class="tag-pill" style="color:var(--secondary);"><i class="fa-solid fa-file-lines"></i> ${escapeHtml(saudeAnexoAtual.nome)}</a>
-       <button type="button" class="btn btn-ghost !p-1" style="color:var(--vermelho);" title="Remover anexo" onclick="removerSaudeAnexo()"><i class="fa-solid fa-xmark"></i></button>`
-    : `<span class="text-xs" style="color:var(--ink-faint);">Nenhum arquivo anexado</span>`;
-}
-function removerSaudeAnexo(){ saudeAnexoAtual = null; renderSaudeAnexoInfo(); }
-function onSaudeAnexoSelect(inputEl){
-  const file = inputEl.files[0];
-  if(!file) return;
-  if(file.size > 1.8 * 1024 * 1024){
-    showToast('Arquivo muito grande. Envie um arquivo de até ~1,8 MB.', 'aviso');
-    inputEl.value = '';
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    saudeAnexoAtual = { nome:file.name, dataUrl:e.target.result };
-    renderSaudeAnexoInfo();
-  };
-  reader.readAsDataURL(file);
-}
-
 function openSaudeModal(id){
   popularColaboradoresSaudeDatalist();
   const form = document.getElementById('form-saude');
   form.reset();
-  saudeAnexoAtual = null;
+  pastasDocumentosTemp.saude = [];
   document.getElementById('sd-colaborador-id').value = '';
   document.getElementById('sd-colaborador-erro').classList.add('hidden');
   document.getElementById('sd-btn-excluir').classList.toggle('hidden', !id);
@@ -4216,14 +4318,16 @@ function openSaudeModal(id){
     document.getElementById('sd-ben-pericia').value = r.dataPericia || '';
     document.getElementById('sd-res-funcao-origem').value = r.funcaoOrigem || '';
     document.getElementById('sd-res-descricao').value = r.descricaoRestricao || '';
-    saudeAnexoAtual = r.anexoArquivo || null;
+    // Compatibilidade: registros antigos tinham só 1 anexo (anexoArquivo); migra pra pasta.
+    pastasDocumentosTemp.saude = r.documentos ? JSON.parse(JSON.stringify(r.documentos))
+      : (r.anexoArquivo ? [{ id: gerarId(), descricao: r.anexoArquivo.nome, nomeArquivo: r.anexoArquivo.nome, dataUrl: r.anexoArquivo.dataUrl, tamanho: 0 }] : []);
   } else {
     document.getElementById('modal-saude-title').textContent = 'Novo registro de saúde / INSS';
     document.getElementById('sd-id').value = '';
     document.getElementById('sd-tipo').value = 'afastamento';
   }
   onSaudeTipoChange();
-  renderSaudeAnexoInfo();
+  renderPastaDocumentos('saude', 'sd-pasta-lista');
   document.getElementById('modal-saude').classList.remove('hidden');
 }
 
@@ -4244,7 +4348,7 @@ function salvarSaude(evt){
     dataInicio: document.getElementById('sd-data-inicio').value,
     dataFim: document.getElementById('sd-data-fim').value,
     observacoes: document.getElementById('sd-observacoes').value.trim(),
-    anexoArquivo: saudeAnexoAtual,
+    documentos: pastasDocumentosTemp.saude,
     cid: document.getElementById('sd-af-cid').value.trim(),
     motivo: document.getElementById('sd-af-motivo').value.trim(),
     numeroCat: document.getElementById('sd-cat-numero').value.trim(),
@@ -5055,7 +5159,6 @@ function renderPgr(){
 
 // Inventário de riscos editado enquanto o modal do PGR/PPRA está aberto.
 let pgrRiscosTemp = [];
-let pgrAnexoAtual = null;
 
 function novoItemRiscoVazio(){
   return { id: gerarId(), setor:'', funcaoCargo:'', tipoAgente:'fisico', descricaoAgente:'', intensidadeConcentracao:'', tecnicaUtilizada:'', epcEficaz:'na', epiEficaz:'na' };
@@ -5111,28 +5214,11 @@ function adicionarItemRiscoPgr(){ pgrRiscosTemp.push(novoItemRiscoVazio()); rend
 function removerItemRiscoPgr(idx){ pgrRiscosTemp.splice(idx,1); renderRiscosPgr(); }
 function atualizarItemRiscoPgr(idx, campo, valor){ if(pgrRiscosTemp[idx]) pgrRiscosTemp[idx][campo] = valor; }
 
-function renderPgrAnexoInfo(){
-  const cont = document.getElementById('pgr-anexo-info');
-  cont.innerHTML = pgrAnexoAtual
-    ? `<a href="${pgrAnexoAtual.dataUrl}" download="${escapeHtml(pgrAnexoAtual.nome)}" class="tag-pill" style="color:var(--secondary);"><i class="fa-solid fa-file-lines"></i> ${escapeHtml(pgrAnexoAtual.nome)}</a>
-       <button type="button" class="btn btn-ghost !p-1" style="color:var(--vermelho);" title="Remover anexo" onclick="removerPgrAnexo()"><i class="fa-solid fa-xmark"></i></button>`
-    : `<span class="text-xs" style="color:var(--ink-faint);">Nenhum arquivo anexado</span>`;
-}
-function removerPgrAnexo(){ pgrAnexoAtual = null; renderPgrAnexoInfo(); }
-function onPgrAnexoSelect(inputEl){
-  const file = inputEl.files[0];
-  if(!file) return;
-  if(file.size > 1.8 * 1024 * 1024){ showToast('Arquivo muito grande. Envie um arquivo de até ~1,8 MB.', 'aviso'); inputEl.value = ''; return; }
-  const reader = new FileReader();
-  reader.onload = (e) => { pgrAnexoAtual = { nome:file.name, dataUrl:e.target.result }; renderPgrAnexoInfo(); };
-  reader.readAsDataURL(file);
-}
-
 function openPgrModal(id){
   const form = document.getElementById('form-pgr');
   form.reset();
   pgrRiscosTemp = [];
-  pgrAnexoAtual = null;
+  pastasDocumentosTemp.pgr = [];
   document.getElementById('pgr-btn-excluir').classList.toggle('hidden', !id);
   document.getElementById('pgr-btn-gerar-todos').classList.toggle('hidden', !id);
   document.getElementById('pgr-btn-ressincronizar').classList.toggle('hidden', !id);
@@ -5148,14 +5234,16 @@ function openPgrModal(id){
     document.getElementById('pgr-data-validade').value = p.dataValidade || '';
     document.getElementById('pgr-observacoes').value = p.observacoes || '';
     pgrRiscosTemp = JSON.parse(JSON.stringify(p.inventarioRiscos || []));
-    pgrAnexoAtual = p.anexoArquivo || null;
+    // Compatibilidade: registros antigos tinham só 1 anexo (anexoArquivo); migra pra pasta.
+    pastasDocumentosTemp.pgr = p.documentos ? JSON.parse(JSON.stringify(p.documentos))
+      : (p.anexoArquivo ? [{ id: gerarId(), descricao: p.anexoArquivo.nome, nomeArquivo: p.anexoArquivo.nome, dataUrl: p.anexoArquivo.dataUrl, tamanho: 0 }] : []);
   } else {
     document.getElementById('modal-pgr-title').textContent = 'Novo PGR/PPRA';
     document.getElementById('pgr-id').value = '';
     document.getElementById('pgr-tipo-programa').value = 'pgr';
   }
   renderRiscosPgr();
-  renderPgrAnexoInfo();
+  renderPastaDocumentos('pgr', 'pgr-pasta-lista');
   document.getElementById('modal-pgr').classList.remove('hidden');
 }
 
@@ -5171,7 +5259,7 @@ function salvarPgr(evt){
     dataElaboracao: document.getElementById('pgr-data-elaboracao').value,
     dataValidade: document.getElementById('pgr-data-validade').value,
     observacoes: document.getElementById('pgr-observacoes').value.trim(),
-    anexoArquivo: pgrAnexoAtual,
+    documentos: pastasDocumentosTemp.pgr,
     inventarioRiscos: pgrRiscosTemp,
   };
   const idx = state.pgrRegistros.findIndex(x => x.id === id);
@@ -5223,6 +5311,7 @@ function gerarPppDeItemRisco(pgr, item){
       responsavelAmbiental: pgr.elaboradoPor || '', responsavelBiologico: '',
       dataEmissaoPPP: '', observacoes: `Gerado automaticamente a partir do ${PGR_TIPOS[pgr.tipoPrograma]||'PGR/PPRA'} (inventário de riscos).`,
       origemPgrId: pgr.id, origemPgrItemId: item.id,
+      documentos: [],
     });
     criados++;
   });
@@ -5532,6 +5621,7 @@ function openPppModal(id){
   document.getElementById('ppp-colaborador-erro').classList.add('hidden');
   document.getElementById('ppp-btn-excluir').classList.toggle('hidden', !id);
   atualizarBannerOrigemPpp(null);
+  pastasDocumentosTemp.ppp = [];
 
   if(id){
     const r = state.pppRegistros.find(x => x.id === id);
@@ -5558,6 +5648,7 @@ function openPppModal(id){
     document.getElementById('ppp-resp-biologico').value = r.responsavelBiologico || '';
     document.getElementById('ppp-data-emissao').value = r.dataEmissaoPPP || '';
     document.getElementById('ppp-observacoes').value = r.observacoes || '';
+    pastasDocumentosTemp.ppp = r.documentos ? JSON.parse(JSON.stringify(r.documentos)) : [];
   } else {
     document.getElementById('modal-ppp-title').textContent = 'Novo registro de PPP';
     document.getElementById('ppp-id').value = '';
@@ -5565,6 +5656,7 @@ function openPppModal(id){
     document.getElementById('ppp-epc-eficaz').value = 'na';
     document.getElementById('ppp-epi-eficaz').value = 'na';
   }
+  renderPastaDocumentos('ppp', 'ppp-pasta-lista');
   document.getElementById('modal-ppp').classList.remove('hidden');
 }
 
@@ -5595,6 +5687,7 @@ function salvarPpp(evt){
     responsavelBiologico: document.getElementById('ppp-resp-biologico').value.trim(),
     dataEmissaoPPP: document.getElementById('ppp-data-emissao').value,
     observacoes: document.getElementById('ppp-observacoes').value.trim(),
+    documentos: pastasDocumentosTemp.ppp,
   };
   const idx = state.pppRegistros.findIndex(x => x.id === id);
   if(idx >= 0) state.pppRegistros[idx] = registro; else state.pppRegistros.push(registro);
