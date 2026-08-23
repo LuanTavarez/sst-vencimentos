@@ -315,6 +315,11 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
         <span class="nav-label">Saúde / INSS</span>
         <span id="nav-count-saude" class="nav-label ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full" style="background:var(--laranja); color:#fff;">0</span>
       </div>
+      <div class="nav-item" data-view="pgr" title="PGR / PPRA — Inventário de Riscos" onclick="goToView('pgr')">
+        <i class="fa-solid fa-triangle-exclamation" style="width:18px; text-align:center;"></i>
+        <span class="nav-label">PGR / PPRA</span>
+        <span id="nav-count-pgr" class="nav-label ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full" style="background:var(--vermelho); color:#fff;">0</span>
+      </div>
       <div class="nav-item" data-view="ppp" title="PPP — Perfil Profissiográfico Previdenciário" onclick="goToView('ppp')">
         <i class="fa-solid fa-radiation" style="width:18px; text-align:center;"></i>
         <span class="nav-label">PPP</span>
@@ -625,6 +630,63 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
         </div>
       </section>
 
+      <!-- ======================= VIEW: PGR / PPRA (Inventário de Riscos) ======================= -->
+      <section id="view-pgr" class="hidden">
+        <div class="chart-card mb-4">
+          <div class="flex items-center justify-between mb-1 gap-2 flex-wrap">
+            <h3 class="!text-sm !mb-0">PGR / PPRA — Inventário de Riscos</h3>
+            <div class="flex items-center gap-2 no-print">
+              <button class="btn btn-outline" onclick="exportPgrExcel()" title="Exportar Excel"><i class="fa-solid fa-file-excel"></i> <span class="hidden sm:inline">Excel</span></button>
+              <button class="btn btn-outline" onclick="printView()" title="Imprimir"><i class="fa-solid fa-print"></i> <span class="hidden sm:inline">Imprimir</span></button>
+              <button class="btn btn-primary" onclick="openPgrModal()"><i class="fa-solid fa-plus"></i> Novo PGR/PPRA</button>
+            </div>
+          </div>
+          <p class="text-xs" style="color:var(--ink-soft);">Programa de Gerenciamento de Riscos (ou PPRA histórico) com inventário de riscos por setor/função — a partir daqui o sistema pode gerar automaticamente o PPP dos colaboradores expostos.</p>
+        </div>
+
+        <div id="pgr-kpi-grid" class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 no-print">
+          <div class="chart-card"><h3>Programas por tipo</h3><div class="chart-box"><canvas id="chart-pgr-tipo"></canvas></div></div>
+          <div class="chart-card"><h3>Programas por mês de elaboração</h3><div class="chart-box"><canvas id="chart-pgr-mes"></canvas></div></div>
+        </div>
+
+        <div class="chart-card mb-4 no-print">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div><label class="field-label">Buscar</label><input id="pgr-f-busca" class="field-input" placeholder="Responsável, setor, agente..." oninput="renderPgr()"></div>
+            <div><label class="field-label">Tipo</label>
+              <select id="pgr-f-tipo" class="field-select" onchange="renderPgr()">
+                <option value="">Todos</option>
+                <option value="pgr">PGR</option>
+                <option value="ppra">PPRA</option>
+              </select>
+            </div>
+            <div><label class="field-label">Status</label>
+              <select id="pgr-f-status" class="field-select" onchange="renderPgr()">
+                <option value="">Todos</option>
+                <option value="vigente">Vigente</option>
+                <option value="vencido">Vencido</option>
+              </select>
+            </div>
+            <div class="flex items-end"><button class="btn btn-ghost w-full" onclick="limparFiltrosPgr()">Limpar filtros</button></div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr>
+              <th>Tipo</th><th>Elaborado por</th><th>Elaboração</th><th>Validade</th><th>Itens de risco</th><th>PPPs gerados</th><th>Situação</th><th class="no-print">Ações</th>
+            </tr></thead>
+            <tbody id="pgr-body"></tbody>
+          </table>
+          <div id="pgr-empty" class="empty-state hidden">
+            <svg class="w-10 h-10 mb-2" style="color:var(--ink-faint);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10.3 3.9 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+            <p class="font-semibold">Nenhum PGR/PPRA cadastrado</p>
+            <p class="text-xs mt-1">Clique em "Novo PGR/PPRA" para cadastrar o programa e o inventário de riscos por setor/função.</p>
+          </div>
+        </div>
+      </section>
+
       <!-- ======================= VIEW: PPP (Perfil Profissiográfico Previdenciário) ======================= -->
       <section id="view-ppp" class="hidden">
         <div class="chart-card mb-4">
@@ -814,6 +876,7 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-alertas" checked> Alertas</label>
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-treinamentos" checked> Treinamentos (agenda de turmas)</label>
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-saude" checked> Saúde / INSS (SESMT)</label>
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-pgr" checked> PGR / PPRA</label>
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-ppp" checked> PPP (Perfil Profissiográfico)</label>
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-importar" checked> Importar planilha</label>
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-ocr" checked> Ler certificado (OCR)</label>
@@ -1339,6 +1402,67 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
 </div>
 
 <!-- ==============================================================
+     MODAL: PGR / PPRA (documento + inventário de riscos)
+     ============================================================== -->
+<div id="modal-pgr" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:900px;">
+    <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid var(--border);">
+      <div>
+        <h2 id="modal-pgr-title" class="text-base font-extrabold">Novo PGR/PPRA</h2>
+        <p class="text-xs" style="color:var(--ink-soft);">Documento + inventário de riscos por setor/função</p>
+      </div>
+      <button class="btn-ghost btn" onclick="closePgrModal()">✕</button>
+    </div>
+    <form id="form-pgr" class="px-6 py-5" onsubmit="salvarPgr(event)">
+      <input type="hidden" id="pgr-id">
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div><label class="field-label">Tipo de programa *</label>
+          <select required id="pgr-tipo-programa" class="field-select">
+            <option value="pgr">PGR (Programa de Gerenciamento de Riscos)</option>
+            <option value="ppra">PPRA (histórico)</option>
+          </select>
+        </div>
+        <div class="md:col-span-2"><label class="field-label">Elaborado por (responsável técnico)</label><input id="pgr-elaborado-por" class="field-input" placeholder="Nome + registro profissional"></div>
+        <div><label class="field-label">Data de elaboração *</label><input required type="date" id="pgr-data-elaboracao" class="field-input"></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-3">
+        <div><label class="field-label">Validade / próxima revisão</label><input type="date" id="pgr-data-validade" class="field-input"></div>
+        <div class="md:col-span-3">
+          <label class="field-label">Documento (PDF)</label>
+          <div class="flex items-center gap-2 flex-wrap">
+            <label class="btn btn-outline !py-1.5" style="font-size:.72rem;" for="pgr-anexo-file"><i class="fa-solid fa-paperclip"></i> Anexar documento</label>
+            <input type="file" id="pgr-anexo-file" accept=".pdf,image/*" class="hidden" onchange="onPgrAnexoSelect(this)">
+            <span id="pgr-anexo-info"><span class="text-xs" style="color:var(--ink-faint);">Nenhum arquivo anexado</span></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3"><label class="field-label">Observações</label><input id="pgr-observacoes" class="field-input"></div>
+
+      <div class="flex items-center justify-between flex-wrap gap-2 mt-6 pt-4" style="border-top:1px dashed var(--border);">
+        <p class="field-label" style="color:var(--primary);">Inventário de riscos (por setor/função)</p>
+        <div class="flex items-center gap-2">
+          <button type="button" class="btn btn-outline" id="pgr-btn-gerar-todos" onclick="confirmarGerarPppTodos()"><i class="fa-solid fa-wand-magic-sparkles"></i> Gerar PPP para todos os colaboradores</button>
+          <button type="button" class="btn btn-outline" onclick="adicionarItemRiscoPgr()"><i class="fa-solid fa-plus"></i> Adicionar risco</button>
+        </div>
+      </div>
+      <p class="text-xs mt-1" style="color:var(--ink-soft);">Cada item vira automaticamente um registro de PPP para todo colaborador cujo Setor e Cargo (em Registros) coincidam com o informado aqui — sem duplicar se você gerar de novo.</p>
+      <div id="pgr-riscos-list" class="mt-3 space-y-3"></div>
+
+      <div class="flex items-center justify-between gap-2 mt-6 pt-4" style="border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-danger hidden" id="pgr-btn-excluir" onclick="pedirExclusaoPgr()"><i class="fa-solid fa-trash"></i> Excluir registro</button>
+        <div class="flex justify-end gap-2 ml-auto">
+          <button type="button" class="btn btn-outline" onclick="closePgrModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar PGR/PPRA</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ==============================================================
      MODAL: REGISTRO DE PPP (histórico de exposição a agentes nocivos)
      ============================================================== -->
 <div id="modal-ppp" class="modal-overlay hidden">
@@ -1500,6 +1624,7 @@ let state = {
   saudeRegistros: [],      // registros de Saúde/INSS (SESMT): afastamentos, CAT, benefícios, restrições
   turmas: [],              // agenda de turmas/sessões de treinamento (com participantes)
   pppRegistros: [],         // Perfil Profissiográfico Previdenciário: histórico de exposição a agentes nocivos
+  pgrRegistros: [],          // PGR/PPRA: documento + inventário de riscos por setor/função
   view: 'dashboard',
   search: '',
   sortKey: 'nome',
@@ -1532,6 +1657,7 @@ function salvarStorage(){
       saudeRegistros: state.saudeRegistros,
       turmas: state.turmas,
       pppRegistros: state.pppRegistros,
+      pgrRegistros: state.pgrRegistros,
     }));
     return true;
   }catch(e){
@@ -1551,6 +1677,7 @@ function carregarStorage(){
       state.saudeRegistros = Array.isArray(data.saudeRegistros) ? data.saudeRegistros : [];
       state.turmas = Array.isArray(data.turmas) ? data.turmas : [];
       state.pppRegistros = Array.isArray(data.pppRegistros) ? data.pppRegistros : [];
+      state.pgrRegistros = Array.isArray(data.pgrRegistros) ? data.pgrRegistros : [];
     }
   }catch(e){ console.warn('Não foi possível carregar dados salvos:', e); }
   // Primeira execução: semeia o catálogo de tipos com os padrões, para que
@@ -1730,7 +1857,7 @@ function goToView(view){
   fecharSidebarMobile();
   state.view = view;
   document.querySelectorAll('.nav-item[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === view));
-  ['dashboard','registros','alertas','treinamentos','saude','ppp','configuracoes'].forEach(v => {
+  ['dashboard','registros','alertas','treinamentos','saude','pgr','ppp','configuracoes'].forEach(v => {
     document.getElementById('view-'+v).classList.toggle('hidden', v !== view);
   });
   const titles = {
@@ -1739,6 +1866,7 @@ function goToView(view){
     alertas:   ['Alertas Inteligentes', 'Documentos vencidos e próximos do vencimento, por urgência'],
     treinamentos: ['Treinamentos', 'Agenda de turmas/sessões de treinamento e controle de participantes'],
     saude:     ['Saúde / INSS (SESMT)', 'Afastamentos, CAT, benefícios previdenciários e restrições/readaptação'],
+    pgr:       ['PGR / PPRA', 'Inventário de riscos por setor/função — gera PPP automaticamente'],
     ppp:       ['PPP', 'Histórico de exposição a agentes nocivos — Perfil Profissiográfico Previdenciário'],
     configuracoes: ['Configurações', 'Identidade visual, aparência, tipos de treinamento, alertas e backup'],
   };
@@ -1776,6 +1904,7 @@ function renderAll(){
   if(state.view === 'alertas') renderAlertas();
   if(state.view === 'treinamentos') renderTreinamentos();
   if(state.view === 'saude') renderSaude();
+  if(state.view === 'pgr') renderPgr();
   if(state.view === 'ppp') renderPpp();
 }
 
@@ -1829,6 +1958,11 @@ function renderSidebarCounts(){
   const badgePpp = document.getElementById('nav-count-ppp');
   badgePpp.textContent = pppPendentes;
   badgePpp.style.display = pppPendentes > 0 ? 'inline-flex' : 'none';
+
+  const pgrVencidos = (state.pgrRegistros||[]).filter(p => calcularSituacaoPgr(p).vencido).length;
+  const badgePgr = document.getElementById('nav-count-pgr');
+  badgePgr.textContent = pgrVencidos;
+  badgePgr.style.display = pgrVencidos > 0 ? 'inline-flex' : 'none';
 }
 
 /* --------------------------------------------------------------------
@@ -3069,7 +3203,7 @@ const CONFIG_PADRAO = {
     primaria:'#1E4FD6', secundaria:'#7C3AED', acento:'#FFB100', sidebar:'#0D1120',
     verde:'#158A45', amarelo:'#B7791F', laranja:'#C2540A', vermelho:'#C81E3A', cinza:'#565F73',
   },
-  modulos: { dashboard:true, registros:true, alertas:true, treinamentos:true, saude:true, ppp:true, importar:true, ocr:true, novo:true, exportar:true },
+  modulos: { dashboard:true, registros:true, alertas:true, treinamentos:true, saude:true, pgr:true, ppp:true, importar:true, ocr:true, novo:true, exportar:true },
   alertas: { d90:true, d60:true, d30:true, d15:true, d7:true, hoje:true },
 };
 
@@ -3198,7 +3332,7 @@ function aplicarConfiguracoes(cfg){
 
   const mapaModulos = {
     dashboard: ['[data-view="dashboard"]'], registros: ['[data-view="registros"]'], alertas: ['[data-view="alertas"]'],
-    treinamentos: ['[data-view="treinamentos"]'], saude: ['[data-view="saude"]'], ppp: ['[data-view="ppp"]'],
+    treinamentos: ['[data-view="treinamentos"]'], saude: ['[data-view="saude"]'], pgr: ['[data-view="pgr"]'], ppp: ['[data-view="ppp"]'],
     importar: ['#nav-action-importar'], ocr: ['#nav-action-ocr'], novo: ['#nav-action-novo', '#topbar-btn-novo'],
   };
   Object.entries(mapaModulos).forEach(([chave, seletores]) => {
@@ -3435,7 +3569,7 @@ function excluirTipoConfig(idx){
    16d. BACKUP E RESTAURAÇÃO
    -------------------------------------------------------------------- */
 function coletarBackup(){
-  return { versao:4, exportadoEm:new Date().toISOString(), records: state.records, customTypes: state.customTypes, saudeRegistros: state.saudeRegistros, turmas: state.turmas, pppRegistros: state.pppRegistros, config: state.config };
+  return { versao:5, exportadoEm:new Date().toISOString(), records: state.records, customTypes: state.customTypes, saudeRegistros: state.saudeRegistros, turmas: state.turmas, pppRegistros: state.pppRegistros, pgrRegistros: state.pgrRegistros, config: state.config };
 }
 
 function exportarBackup(){
@@ -3463,13 +3597,14 @@ function importarBackup(evt){
     }
     abrirConfirmacao(
       'Restaurar backup?',
-      'Isso vai SUBSTITUIR todos os dados atuais (colaboradores, saúde/INSS, turmas, PPP, tipos e configurações). Deseja continuar?',
+      'Isso vai SUBSTITUIR todos os dados atuais (colaboradores, saúde/INSS, turmas, PPP, PGR/PPRA, tipos e configurações). Deseja continuar?',
       () => {
         state.records = Array.isArray(dados.records) ? dados.records : [];
         state.customTypes = Array.isArray(dados.customTypes) && dados.customTypes.length ? dados.customTypes : JSON.parse(JSON.stringify(TIPOS_PADRAO));
         state.saudeRegistros = Array.isArray(dados.saudeRegistros) ? dados.saudeRegistros : [];
         state.turmas = Array.isArray(dados.turmas) ? dados.turmas : [];
         state.pppRegistros = Array.isArray(dados.pppRegistros) ? dados.pppRegistros : [];
+        state.pgrRegistros = Array.isArray(dados.pgrRegistros) ? dados.pgrRegistros : [];
         state.config = mesclarConfig(dados.config || {});
         salvarStorage();
         salvarConfigStorage();
@@ -3490,7 +3625,7 @@ function importarBackup(evt){
 function limparBancoDados(){
   abrirConfirmacao(
     'Limpar banco de dados?',
-    'Isso vai apagar TODOS os colaboradores, treinamentos, registros de saúde/INSS, turmas e PPP cadastrados. Esta ação não pode ser desfeita.',
+    'Isso vai apagar TODOS os colaboradores, treinamentos, registros de saúde/INSS, turmas, PPP e PGR/PPRA cadastrados. Esta ação não pode ser desfeita.',
     () => {
       abrirConfirmacao(
         'Tem certeza mesmo?',
@@ -3500,6 +3635,7 @@ function limparBancoDados(){
           state.saudeRegistros = [];
           state.turmas = [];
           state.pppRegistros = [];
+          state.pgrRegistros = [];
           salvarStorage();
           renderAll();
           showToast('Banco de dados limpo.', 'sucesso');
@@ -4708,6 +4844,357 @@ function usarDadosOcr(){
   else state.modalTreinamentos = [novoItem];
   renderModalTreinamentos();
   showToast('Dados preenchidos a partir do certificado — confira tudo antes de salvar.', 'aviso');
+}
+
+/* --------------------------------------------------------------------
+   16i-a. PGR / PPRA — documento + inventário de riscos por setor/função.
+   O inventário de riscos é a fonte de dados que gera automaticamente os
+   registros de PPP dos colaboradores expostos (por setor + cargo).
+   -------------------------------------------------------------------- */
+const PGR_TIPOS = { pgr:'PGR', ppra:'PPRA' };
+
+function calcularSituacaoPgr(pgr){
+  if(!pgr.dataValidade) return { cor:'verde', label:'Vigente (sem prazo definido)', vencido:false };
+  const dias = diffDias(pgr.dataValidade);
+  if(isNaN(dias)) return { cor:'verde', label:'Vigente (sem prazo definido)', vencido:false };
+  if(dias < 0)   return { cor:'vermelho', label:'Vencido', vencido:true };
+  if(dias <= 30) return { cor:'laranja', label:`Vence em ${dias}d`, vencido:false };
+  if(dias <= 60) return { cor:'amarelo', label:`Vence em ${dias}d`, vencido:false };
+  return { cor:'verde', label:'Vigente', vencido:false };
+}
+
+function pgrRegistrosCalculados(){
+  return (state.pgrRegistros||[]).map(p => ({
+    ...p,
+    _situacao: calcularSituacaoPgr(p),
+    _totalItens: (p.inventarioRiscos||[]).length,
+    _pppsGerados: (state.pppRegistros||[]).filter(r => r.origemPgrId === p.id).length,
+  }));
+}
+
+function pgrFiltrados(){
+  let lista = pgrRegistrosCalculados();
+  const busca = normalizarTexto(document.getElementById('pgr-f-busca')?.value || '');
+  const fTipo = document.getElementById('pgr-f-tipo')?.value;
+  const fStatus = document.getElementById('pgr-f-status')?.value;
+  if(busca) lista = lista.filter(p =>
+    normalizarTexto(p.elaboradoPor).includes(busca) ||
+    (p.inventarioRiscos||[]).some(i => normalizarTexto(i.setor).includes(busca) || normalizarTexto(i.descricaoAgente).includes(busca))
+  );
+  if(fTipo) lista = lista.filter(p => p.tipoPrograma === fTipo);
+  if(fStatus === 'vigente') lista = lista.filter(p => !p._situacao.vencido);
+  if(fStatus === 'vencido') lista = lista.filter(p => p._situacao.vencido);
+  return lista.sort((a,b) => String(b.dataElaboracao||'').localeCompare(String(a.dataElaboracao||'')));
+}
+
+function limparFiltrosPgr(){
+  document.getElementById('pgr-f-busca').value = '';
+  document.getElementById('pgr-f-tipo').value = '';
+  document.getElementById('pgr-f-status').value = '';
+  renderPgr();
+}
+
+function irParaPgrFiltrado(status){
+  const sel = document.getElementById('pgr-f-status');
+  if(sel) sel.value = status || '';
+  renderPgr();
+}
+
+function renderPgrKPIs(){
+  const todos = pgrRegistrosCalculados();
+  const kpis = [
+    { label:'Vigentes', value: todos.filter(p=>!p._situacao.vencido).length, color:'var(--verde)', onClick:"irParaPgrFiltrado('vigente')" },
+    { label:'Vencidos', value: todos.filter(p=>p._situacao.vencido).length, color:'var(--vermelho)', onClick:"irParaPgrFiltrado('vencido')" },
+    { label:'Itens de risco cadastrados', value: todos.reduce((a,p)=>a+p._totalItens,0), color:'var(--primary)', onClick:"irParaPgrFiltrado('')" },
+    { label:'PPPs gerados automaticamente', value: todos.reduce((a,p)=>a+p._pppsGerados,0), color:'var(--laranja)', onClick:"irParaPgrFiltrado('')" },
+    { label:'Total de programas', value: todos.length, color:'var(--ink)', onClick:"irParaPgrFiltrado('')" },
+  ];
+  document.getElementById('pgr-kpi-grid').innerHTML = kpis.map(k => `
+    <button type="button" class="kpi-card" onclick="${k.onClick}">
+      <span class="kpi-value tabular" style="color:${k.color}">${k.value}</span>
+      <span class="kpi-label">${k.label}</span>
+      <span class="kpi-card-hint">Ver detalhes <i class="fa-solid fa-arrow-right"></i></span>
+    </button>`).join('');
+}
+
+function renderPgrGraficos(){
+  const todos = pgrRegistrosCalculados();
+  const porTipo = {};
+  todos.forEach(p => { const k = PGR_TIPOS[p.tipoPrograma] || p.tipoPrograma || 'Não informado'; porTipo[k] = (porTipo[k]||0) + 1; });
+  renderDoughnutChart('chart-pgr-tipo', porTipo);
+
+  const porMes = {};
+  todos.forEach(p => {
+    if(!p.dataElaboracao) return;
+    const d = parseISOLocal(p.dataElaboracao);
+    if(!d) return;
+    const k = chaveMes(d);
+    porMes[k] = (porMes[k]||0) + 1;
+  });
+  renderBarChart('chart-pgr-mes', porMes, false);
+}
+
+function renderPgr(){
+  renderPgrKPIs();
+  renderPgrGraficos();
+  const lista = pgrFiltrados();
+  document.getElementById('pgr-empty').classList.toggle('hidden', lista.length !== 0);
+  document.getElementById('pgr-body').innerHTML = lista.map(p => `<tr>
+      <td><span class="tag-pill">${escapeHtml(PGR_TIPOS[p.tipoPrograma] || p.tipoPrograma || '')}</span></td>
+      <td>${escapeHtml(p.elaboradoPor||'—')}</td>
+      <td>${formatarDataBR(p.dataElaboracao)}</td>
+      <td>${p.dataValidade ? formatarDataBR(p.dataValidade) : '—'}</td>
+      <td>${p._totalItens}</td>
+      <td>${p._pppsGerados}</td>
+      <td><span class="badge badge-${p._situacao.cor}"><span class="badge-dot" style="background:currentColor;"></span>${escapeHtml(p._situacao.label)}</span></td>
+      <td class="no-print">
+        <button class="btn btn-ghost !p-1.5" style="color:var(--secondary);" title="Gerar PPP para colaboradores" onclick="confirmarGerarPppTodosPara('${p.id}')"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+        <button class="btn btn-ghost !p-1.5" title="Editar" onclick="openPgrModal('${p.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-ghost !p-1.5" style="color:var(--vermelho);" title="Excluir" onclick="pedirExclusaoPgr('${p.id}')"><i class="fa-solid fa-trash"></i></button>
+      </td>
+    </tr>`).join('');
+}
+
+// Inventário de riscos editado enquanto o modal do PGR/PPRA está aberto.
+let pgrRiscosTemp = [];
+let pgrAnexoAtual = null;
+
+function novoItemRiscoVazio(){
+  return { id: gerarId(), setor:'', funcaoCargo:'', tipoAgente:'fisico', descricaoAgente:'', intensidadeConcentracao:'', tecnicaUtilizada:'', epcEficaz:'na', epiEficaz:'na' };
+}
+
+function renderRiscosPgr(){
+  const cont = document.getElementById('pgr-riscos-list');
+  if(!pgrRiscosTemp.length){
+    cont.innerHTML = `<p class="text-xs italic px-1" style="color:var(--ink-soft);">Nenhum risco adicionado ainda. Clique em "Adicionar risco" para descrever a exposição por setor/função.</p>`;
+    return;
+  }
+  cont.innerHTML = pgrRiscosTemp.map((item, idx) => `
+    <div class="rounded-lg p-3 relative" style="border:1px solid var(--border); background:var(--surface-2);">
+      <button type="button" class="btn btn-ghost !p-1.5 absolute top-2 right-2" style="color:var(--vermelho);" title="Remover risco" onclick="removerItemRiscoPgr(${idx})"><i class="fa-solid fa-trash"></i></button>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 pr-8">
+        <div><label class="field-label">Setor</label><input class="field-input" value="${escapeHtml(item.setor||'')}" placeholder="Precisa bater com o Setor do colaborador em Registros" oninput="atualizarItemRiscoPgr(${idx},'setor',this.value)"></div>
+        <div><label class="field-label">Função/Cargo</label><input class="field-input" value="${escapeHtml(item.funcaoCargo||'')}" placeholder="Precisa bater com o Cargo do colaborador em Registros" oninput="atualizarItemRiscoPgr(${idx},'funcaoCargo',this.value)"></div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+        <div><label class="field-label">Tipo de agente</label>
+          <select class="field-select" onchange="atualizarItemRiscoPgr(${idx},'tipoAgente',this.value)">
+            <option value="fisico" ${item.tipoAgente==='fisico'?'selected':''}>Físico</option>
+            <option value="quimico" ${item.tipoAgente==='quimico'?'selected':''}>Químico</option>
+            <option value="biologico" ${item.tipoAgente==='biologico'?'selected':''}>Biológico</option>
+            <option value="ergonomico" ${item.tipoAgente==='ergonomico'?'selected':''}>Ergonômico</option>
+            <option value="outro" ${item.tipoAgente==='outro'?'selected':''}>Outro</option>
+          </select>
+        </div>
+        <div><label class="field-label">Descrição do agente</label><input class="field-input" value="${escapeHtml(item.descricaoAgente||'')}" oninput="atualizarItemRiscoPgr(${idx},'descricaoAgente',this.value)"></div>
+        <div><label class="field-label">Intensidade/Concentração</label><input class="field-input" value="${escapeHtml(item.intensidadeConcentracao||'')}" oninput="atualizarItemRiscoPgr(${idx},'intensidadeConcentracao',this.value)"></div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+        <div><label class="field-label">Técnica utilizada</label><input class="field-input" value="${escapeHtml(item.tecnicaUtilizada||'')}" oninput="atualizarItemRiscoPgr(${idx},'tecnicaUtilizada',this.value)"></div>
+        <div><label class="field-label">EPC eficaz?</label>
+          <select class="field-select" onchange="atualizarItemRiscoPgr(${idx},'epcEficaz',this.value)">
+            <option value="na" ${item.epcEficaz==='na'?'selected':''}>Não se aplica</option>
+            <option value="sim" ${item.epcEficaz==='sim'?'selected':''}>Sim</option>
+            <option value="nao" ${item.epcEficaz==='nao'?'selected':''}>Não</option>
+          </select>
+        </div>
+        <div><label class="field-label">EPI eficaz?</label>
+          <select class="field-select" onchange="atualizarItemRiscoPgr(${idx},'epiEficaz',this.value)">
+            <option value="na" ${item.epiEficaz==='na'?'selected':''}>Não se aplica</option>
+            <option value="sim" ${item.epiEficaz==='sim'?'selected':''}>Sim</option>
+            <option value="nao" ${item.epiEficaz==='nao'?'selected':''}>Não</option>
+          </select>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function adicionarItemRiscoPgr(){ pgrRiscosTemp.push(novoItemRiscoVazio()); renderRiscosPgr(); }
+function removerItemRiscoPgr(idx){ pgrRiscosTemp.splice(idx,1); renderRiscosPgr(); }
+function atualizarItemRiscoPgr(idx, campo, valor){ if(pgrRiscosTemp[idx]) pgrRiscosTemp[idx][campo] = valor; }
+
+function renderPgrAnexoInfo(){
+  const cont = document.getElementById('pgr-anexo-info');
+  cont.innerHTML = pgrAnexoAtual
+    ? `<a href="${pgrAnexoAtual.dataUrl}" download="${escapeHtml(pgrAnexoAtual.nome)}" class="tag-pill" style="color:var(--secondary);"><i class="fa-solid fa-file-lines"></i> ${escapeHtml(pgrAnexoAtual.nome)}</a>
+       <button type="button" class="btn btn-ghost !p-1" style="color:var(--vermelho);" title="Remover anexo" onclick="removerPgrAnexo()"><i class="fa-solid fa-xmark"></i></button>`
+    : `<span class="text-xs" style="color:var(--ink-faint);">Nenhum arquivo anexado</span>`;
+}
+function removerPgrAnexo(){ pgrAnexoAtual = null; renderPgrAnexoInfo(); }
+function onPgrAnexoSelect(inputEl){
+  const file = inputEl.files[0];
+  if(!file) return;
+  if(file.size > 1.8 * 1024 * 1024){ showToast('Arquivo muito grande. Envie um arquivo de até ~1,8 MB.', 'aviso'); inputEl.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = (e) => { pgrAnexoAtual = { nome:file.name, dataUrl:e.target.result }; renderPgrAnexoInfo(); };
+  reader.readAsDataURL(file);
+}
+
+function openPgrModal(id){
+  const form = document.getElementById('form-pgr');
+  form.reset();
+  pgrRiscosTemp = [];
+  pgrAnexoAtual = null;
+  document.getElementById('pgr-btn-excluir').classList.toggle('hidden', !id);
+  document.getElementById('pgr-btn-gerar-todos').classList.toggle('hidden', !id);
+
+  if(id){
+    const p = state.pgrRegistros.find(x => x.id === id);
+    if(!p) return;
+    document.getElementById('modal-pgr-title').textContent = 'Editar PGR/PPRA';
+    document.getElementById('pgr-id').value = p.id;
+    document.getElementById('pgr-tipo-programa').value = p.tipoPrograma || 'pgr';
+    document.getElementById('pgr-elaborado-por').value = p.elaboradoPor || '';
+    document.getElementById('pgr-data-elaboracao').value = p.dataElaboracao || '';
+    document.getElementById('pgr-data-validade').value = p.dataValidade || '';
+    document.getElementById('pgr-observacoes').value = p.observacoes || '';
+    pgrRiscosTemp = JSON.parse(JSON.stringify(p.inventarioRiscos || []));
+    pgrAnexoAtual = p.anexoArquivo || null;
+  } else {
+    document.getElementById('modal-pgr-title').textContent = 'Novo PGR/PPRA';
+    document.getElementById('pgr-id').value = '';
+    document.getElementById('pgr-tipo-programa').value = 'pgr';
+  }
+  renderRiscosPgr();
+  renderPgrAnexoInfo();
+  document.getElementById('modal-pgr').classList.remove('hidden');
+}
+
+function closePgrModal(){ document.getElementById('modal-pgr').classList.add('hidden'); }
+
+function salvarPgr(evt){
+  evt.preventDefault();
+  const id = document.getElementById('pgr-id').value || gerarId();
+  const registro = {
+    id,
+    tipoPrograma: document.getElementById('pgr-tipo-programa').value,
+    elaboradoPor: document.getElementById('pgr-elaborado-por').value.trim(),
+    dataElaboracao: document.getElementById('pgr-data-elaboracao').value,
+    dataValidade: document.getElementById('pgr-data-validade').value,
+    observacoes: document.getElementById('pgr-observacoes').value.trim(),
+    anexoArquivo: pgrAnexoAtual,
+    inventarioRiscos: pgrRiscosTemp,
+  };
+  const idx = state.pgrRegistros.findIndex(x => x.id === id);
+  if(idx >= 0) state.pgrRegistros[idx] = registro; else state.pgrRegistros.push(registro);
+  if(salvarStorage()) showToast('PGR/PPRA salvo.', 'sucesso');
+  closePgrModal();
+  renderAll();
+}
+
+function pedirExclusaoPgr(id){
+  id = id || document.getElementById('pgr-id').value;
+  if(!id) return;
+  abrirConfirmacao(
+    'Excluir este PGR/PPRA?',
+    'Isso remove o documento e o inventário de riscos. Registros de PPP já gerados a partir dele NÃO são apagados automaticamente — exclua-os manualmente em PPP se necessário.',
+    () => {
+      state.pgrRegistros = state.pgrRegistros.filter(x => x.id !== id);
+      salvarStorage();
+      closePgrModal();
+      renderAll();
+      showToast('PGR/PPRA excluído.', 'sucesso');
+    }
+  );
+}
+
+// --- Geração automática de PPP a partir do inventário de riscos ---------
+// Para um item de risco (setor + função), encontra todo colaborador com
+// Setor/Cargo (em Registros) batendo, e cria um PPP pra cada um — sem
+// duplicar se essa mesma combinação colaborador+item já tiver sido gerada.
+function gerarPppDeItemRisco(pgr, item){
+  const setorNorm = normalizarTexto(item.setor);
+  const funcaoNorm = normalizarTexto(item.funcaoCargo);
+  if(!setorNorm && !funcaoNorm) return { criados:0, jaExistiam:0 };
+  const colaboradoresAlvo = state.records.filter(c =>
+    (!setorNorm || normalizarTexto(c.setor) === setorNorm) &&
+    (!funcaoNorm || normalizarTexto(c.cargo) === funcaoNorm)
+  );
+  let criados = 0, jaExistiam = 0;
+  colaboradoresAlvo.forEach(c => {
+    const existe = state.pppRegistros.some(r => r.colaboradorId === c.id && r.origemPgrItemId === item.id);
+    if(existe){ jaExistiam++; return; }
+    state.pppRegistros.push({
+      id: gerarId(), colaboradorId: c.id,
+      cargoFuncao: c.cargo || item.funcaoCargo, setorLocal: c.setor || item.setor,
+      dataInicio: pgr.dataElaboracao || formatarDataISO(new Date()), dataFim:'',
+      tipoAgente: item.tipoAgente, descricaoAgente: item.descricaoAgente,
+      intensidadeConcentracao: item.intensidadeConcentracao, tecnicaUtilizada: item.tecnicaUtilizada,
+      epcEficaz: item.epcEficaz, epiEficaz: item.epiEficaz,
+      responsavelAmbiental: pgr.elaboradoPor || '', responsavelBiologico: '',
+      dataEmissaoPPP: '', observacoes: `Gerado automaticamente a partir do ${PGR_TIPOS[pgr.tipoPrograma]||'PGR/PPRA'} (inventário de riscos).`,
+      origemPgrId: pgr.id, origemPgrItemId: item.id,
+    });
+    criados++;
+  });
+  return { criados, jaExistiam };
+}
+
+function gerarPppDeTodosOsRiscos(pgrId){
+  const pgr = state.pgrRegistros.find(p => p.id === pgrId);
+  if(!pgr) return;
+  let totalCriados = 0, totalJaExistiam = 0;
+  (pgr.inventarioRiscos||[]).forEach(item => {
+    const r = gerarPppDeItemRisco(pgr, item);
+    totalCriados += r.criados; totalJaExistiam += r.jaExistiam;
+  });
+  if(totalCriados) salvarStorage();
+  renderAll();
+  if(totalCriados === 0 && totalJaExistiam === 0){
+    showToast('Nenhum colaborador com Setor/Cargo (em Registros) batendo com os riscos deste PGR/PPRA.', 'aviso');
+  } else if(totalCriados === 0){
+    showToast('Todos os PPPs já haviam sido gerados anteriormente para este PGR/PPRA.', 'info');
+  } else {
+    showToast(`${totalCriados} registro(s) de PPP gerado(s)${totalJaExistiam ? ` · ${totalJaExistiam} já existente(s) ignorado(s)` : ''}.`, 'sucesso');
+  }
+}
+
+function confirmarGerarPppTodosPara(pgrId){
+  const pgr = state.pgrRegistros.find(x => x.id === pgrId);
+  if(!pgr) return;
+  const totalItens = (pgr.inventarioRiscos||[]).length;
+  if(!totalItens){ showToast('Este PGR/PPRA não tem itens no inventário de riscos.', 'aviso'); return; }
+  abrirConfirmacao(
+    'Gerar PPP para todos os colaboradores?',
+    `Isso cria um registro de PPP para cada colaborador cujo Setor e Cargo (em Registros) batam com algum dos ${totalItens} risco(s) deste ${PGR_TIPOS[pgr.tipoPrograma]||'programa'}. Quem já tem PPP gerado a partir do mesmo risco não é duplicado.`,
+    () => gerarPppDeTodosOsRiscos(pgrId),
+    { confirmLabel:'Gerar PPP', danger:false }
+  );
+}
+
+function confirmarGerarPppTodos(){
+  const id = document.getElementById('pgr-id').value;
+  if(id) confirmarGerarPppTodosPara(id);
+}
+
+function dadosPgrParaExportacao(){
+  const linhas = [];
+  pgrFiltrados().forEach(p => {
+    const itens = (p.inventarioRiscos && p.inventarioRiscos.length) ? p.inventarioRiscos : [{}];
+    itens.forEach(item => {
+      linhas.push({
+        'Tipo': PGR_TIPOS[p.tipoPrograma] || p.tipoPrograma, 'Elaborado por': p.elaboradoPor,
+        'Data de Elaboração': formatarDataBR(p.dataElaboracao), 'Validade': p.dataValidade ? formatarDataBR(p.dataValidade) : '',
+        'Setor': item.setor||'', 'Função/Cargo': item.funcaoCargo||'',
+        'Tipo de Agente': item.tipoAgente ? (PPP_AGENTES[item.tipoAgente]||item.tipoAgente) : '',
+        'Descrição do Agente': item.descricaoAgente||'', 'Intensidade/Concentração': item.intensidadeConcentracao||'',
+        'EPC Eficaz': item.epcEficaz==='sim'?'Sim':item.epcEficaz==='nao'?'Não':(item.epcEficaz?'Não se aplica':''),
+        'EPI Eficaz': item.epiEficaz==='sim'?'Sim':item.epiEficaz==='nao'?'Não':(item.epiEficaz?'Não se aplica':''),
+        'Situação do Programa': p._situacao.label,
+      });
+    });
+  });
+  return linhas;
+}
+
+function exportPgrExcel(){
+  const dados = dadosPgrParaExportacao();
+  if(!dados.length){ showToast('Não há PGR/PPRA para exportar.', 'aviso'); return; }
+  const ws = XLSX.utils.json_to_sheet(dados);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'PGR PPRA');
+  XLSX.writeFile(wb, `pgr-ppra-${formatarDataISO(new Date())}.xlsx`);
+  showToast('Excel exportado.', 'sucesso');
 }
 
 /* --------------------------------------------------------------------
