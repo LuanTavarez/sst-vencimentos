@@ -1445,6 +1445,7 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
         <p class="field-label" style="color:var(--primary);">Inventário de riscos (por setor/função)</p>
         <div class="flex items-center gap-2">
           <button type="button" class="btn btn-outline" id="pgr-btn-gerar-todos" onclick="confirmarGerarPppTodos()"><i class="fa-solid fa-wand-magic-sparkles"></i> Gerar PPP para todos os colaboradores</button>
+          <button type="button" class="btn btn-outline" id="pgr-btn-ressincronizar" onclick="confirmarRessincronizarPppTodos()"><i class="fa-solid fa-rotate"></i> Re-sincronizar PPPs gerados</button>
           <button type="button" class="btn btn-outline" onclick="adicionarItemRiscoPgr()"><i class="fa-solid fa-plus"></i> Adicionar risco</button>
         </div>
       </div>
@@ -1483,6 +1484,11 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
         <datalist id="dl-colaboradores-ppp"></datalist>
         <input type="hidden" id="ppp-colaborador-id">
         <p id="ppp-colaborador-erro" class="text-xs mt-1 hidden" style="color:var(--vermelho);">Selecione um colaborador válido da lista (já cadastrado em Registros).</p>
+      </div>
+
+      <div id="ppp-origem-banner" class="hidden mt-3 rounded-lg px-3 py-2 flex items-center justify-between gap-2 flex-wrap" style="background:var(--primary-soft);">
+        <p class="text-xs" id="ppp-origem-texto" style="color:var(--primary-dark);"></p>
+        <button type="button" id="ppp-origem-btn" class="btn btn-outline !py-1 flex-shrink-0" style="font-size:.7rem;" onclick="verPgrOrigemDoPpp()">Ver PGR/PPRA de origem</button>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
@@ -4949,6 +4955,7 @@ function renderPgr(){
       <td><span class="badge badge-${p._situacao.cor}"><span class="badge-dot" style="background:currentColor;"></span>${escapeHtml(p._situacao.label)}</span></td>
       <td class="no-print">
         <button class="btn btn-ghost !p-1.5" style="color:var(--secondary);" title="Gerar PPP para colaboradores" onclick="confirmarGerarPppTodosPara('${p.id}')"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+        <button class="btn btn-ghost !p-1.5" style="color:var(--primary);" title="Re-sincronizar PPPs já gerados" onclick="confirmarRessincronizarPppTodosPara('${p.id}')"><i class="fa-solid fa-rotate"></i></button>
         <button class="btn btn-ghost !p-1.5" title="Editar" onclick="openPgrModal('${p.id}')"><i class="fa-solid fa-pen"></i></button>
         <button class="btn btn-ghost !p-1.5" style="color:var(--vermelho);" title="Excluir" onclick="pedirExclusaoPgr('${p.id}')"><i class="fa-solid fa-trash"></i></button>
       </td>
@@ -5037,6 +5044,7 @@ function openPgrModal(id){
   pgrAnexoAtual = null;
   document.getElementById('pgr-btn-excluir').classList.toggle('hidden', !id);
   document.getElementById('pgr-btn-gerar-todos').classList.toggle('hidden', !id);
+  document.getElementById('pgr-btn-ressincronizar').classList.toggle('hidden', !id);
 
   if(id){
     const p = state.pgrRegistros.find(x => x.id === id);
@@ -5165,6 +5173,65 @@ function confirmarGerarPppTodosPara(pgrId){
 function confirmarGerarPppTodos(){
   const id = document.getElementById('pgr-id').value;
   if(id) confirmarGerarPppTodosPara(id);
+}
+
+// --- Re-sincronização: empurra os dados ATUAIS de um risco (agente,
+// intensidade, EPC/EPI eficaz...) para os PPPs que já foram gerados a
+// partir dele, sobrescrevendo esses campos — sem mexer nas datas do
+// colaborador (início/fim/emissão), que são específicas de cada PPP.
+// Também gera PPP para colaboradores novos que passaram a bater com o
+// risco desde a última geração.
+function ressincronizarPppDeItemRisco(pgr, item){
+  let atualizados = 0;
+  state.pppRegistros.forEach(r => {
+    if(r.origemPgrItemId === item.id){
+      r.tipoAgente = item.tipoAgente;
+      r.descricaoAgente = item.descricaoAgente;
+      r.intensidadeConcentracao = item.intensidadeConcentracao;
+      r.tecnicaUtilizada = item.tecnicaUtilizada;
+      r.epcEficaz = item.epcEficaz;
+      r.epiEficaz = item.epiEficaz;
+      if(pgr.elaboradoPor) r.responsavelAmbiental = pgr.elaboradoPor;
+      atualizados++;
+    }
+  });
+  const { criados } = gerarPppDeItemRisco(pgr, item);
+  return { atualizados, criados };
+}
+
+function ressincronizarPppDeTodosOsRiscos(pgrId){
+  const pgr = state.pgrRegistros.find(p => p.id === pgrId);
+  if(!pgr) return;
+  let totalAtualizados = 0, totalCriados = 0;
+  (pgr.inventarioRiscos||[]).forEach(item => {
+    const r = ressincronizarPppDeItemRisco(pgr, item);
+    totalAtualizados += r.atualizados; totalCriados += r.criados;
+  });
+  if(totalAtualizados || totalCriados) salvarStorage();
+  renderAll();
+  if(!totalAtualizados && !totalCriados){
+    showToast('Nenhum PPP vinculado a este PGR/PPRA para atualizar, e nenhum colaborador novo encontrado.', 'aviso');
+  } else {
+    showToast(`${totalAtualizados} PPP(s) atualizado(s) com os dados atuais do risco${totalCriados ? ` · ${totalCriados} novo(s) gerado(s)` : ''}.`, 'sucesso');
+  }
+}
+
+function confirmarRessincronizarPppTodosPara(pgrId){
+  const pgr = state.pgrRegistros.find(x => x.id === pgrId);
+  if(!pgr) return;
+  const qtdVinculados = (state.pppRegistros||[]).filter(r => r.origemPgrId === pgrId).length;
+  if(!qtdVinculados){ showToast('Nenhum PPP foi gerado a partir deste PGR/PPRA ainda — use "Gerar PPP" primeiro.', 'aviso'); return; }
+  abrirConfirmacao(
+    'Re-sincronizar PPPs gerados?',
+    `Isso vai SOBRESCREVER agente, intensidade, técnica e EPC/EPI eficaz em ${qtdVinculados} PPP(s) já gerado(s) por este ${PGR_TIPOS[pgr.tipoPrograma]||'programa'}, usando os dados atuais do inventário de riscos. Se você editou esses campos manualmente dentro de algum PPP, essa edição será perdida. Datas do colaborador não são alteradas.`,
+    () => ressincronizarPppDeTodosOsRiscos(pgrId),
+    { confirmLabel:'Re-sincronizar' }
+  );
+}
+
+function confirmarRessincronizarPppTodos(){
+  const id = document.getElementById('pgr-id').value;
+  if(id) confirmarRessincronizarPppTodosPara(id);
 }
 
 function dadosPgrParaExportacao(){
@@ -5300,7 +5367,7 @@ function renderPpp(){
         <p class="font-semibold">${escapeHtml(r._colaborador.nome)}</p>
         <p class="text-xs" style="color:var(--ink-soft);">${escapeHtml(r._colaborador.matricula)} · ${escapeHtml(r._colaborador.empresa||'')}</p>
       </td>
-      <td><span class="tag-pill">${escapeHtml(PPP_AGENTES[r.tipoAgente] || r.tipoAgente || '')}${r.descricaoAgente ? ' · '+escapeHtml(r.descricaoAgente) : ''}</span></td>
+      <td><span class="tag-pill">${escapeHtml(PPP_AGENTES[r.tipoAgente] || r.tipoAgente || '')}${r.descricaoAgente ? ' · '+escapeHtml(r.descricaoAgente) : ''}</span>${r.origemPgrId ? ` <button type="button" class="tag-pill no-print" style="color:var(--primary); cursor:pointer;" title="Gerado a partir de um PGR/PPRA — clique para abrir" onclick="irParaPgrRegistro('${r.origemPgrId}')"><i class="fa-solid fa-link"></i> PGR</button>` : ''}</td>
       <td>${escapeHtml(r.cargoFuncao||'—')}</td>
       <td>${formatarDataBR(r.dataInicio)}</td>
       <td>${r.dataFim ? formatarDataBR(r.dataFim) : '—'}</td>
@@ -5331,6 +5398,41 @@ function onPppColaboradorInput(){
   document.getElementById('ppp-colaborador-erro').classList.toggle('hidden', !!id || !valor);
 }
 
+let pppOrigemPgrIdAtual = null;
+
+function atualizarBannerOrigemPpp(r){
+  const banner = document.getElementById('ppp-origem-banner');
+  if(!r || !r.origemPgrId){
+    banner.classList.add('hidden');
+    pppOrigemPgrIdAtual = null;
+    return;
+  }
+  const pgrOrigem = state.pgrRegistros.find(x => x.id === r.origemPgrId);
+  banner.classList.remove('hidden');
+  if(pgrOrigem){
+    document.getElementById('ppp-origem-texto').textContent = `Gerado automaticamente a partir do ${PGR_TIPOS[pgrOrigem.tipoPrograma]||'PGR/PPRA'} elaborado em ${formatarDataBR(pgrOrigem.dataElaboracao)}.`;
+    document.getElementById('ppp-origem-btn').classList.remove('hidden');
+    pppOrigemPgrIdAtual = pgrOrigem.id;
+  } else {
+    document.getElementById('ppp-origem-texto').textContent = 'Gerado automaticamente a partir de um PGR/PPRA que foi excluído depois.';
+    document.getElementById('ppp-origem-btn').classList.add('hidden');
+    pppOrigemPgrIdAtual = null;
+  }
+}
+
+function verPgrOrigemDoPpp(){
+  if(!pppOrigemPgrIdAtual) return;
+  closePppModal();
+  irParaPgrRegistro(pppOrigemPgrIdAtual);
+}
+
+function irParaPgrRegistro(pgrId){
+  const existe = state.pgrRegistros.some(p => p.id === pgrId);
+  if(!existe){ showToast('O PGR/PPRA de origem deste registro foi excluído.', 'aviso'); return; }
+  goToView('pgr');
+  openPgrModal(pgrId);
+}
+
 function openPppModal(id){
   popularColaboradoresPppDatalist();
   const form = document.getElementById('form-ppp');
@@ -5338,6 +5440,7 @@ function openPppModal(id){
   document.getElementById('ppp-colaborador-id').value = '';
   document.getElementById('ppp-colaborador-erro').classList.add('hidden');
   document.getElementById('ppp-btn-excluir').classList.toggle('hidden', !id);
+  atualizarBannerOrigemPpp(null);
 
   if(id){
     const r = state.pppRegistros.find(x => x.id === id);
@@ -5345,6 +5448,7 @@ function openPppModal(id){
     const c = colaboradorPorId(r.colaboradorId);
     document.getElementById('modal-ppp-title').textContent = 'Editar registro de PPP';
     document.getElementById('ppp-id').value = r.id;
+    atualizarBannerOrigemPpp(r);
     if(c){
       document.getElementById('ppp-colaborador-busca').value = `${c.nome} — ${c.matricula}`;
       document.getElementById('ppp-colaborador-id').value = c.id;
