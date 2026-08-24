@@ -1553,6 +1553,7 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
         <div class="flex items-center gap-2 flex-wrap mb-2">
           <label class="btn btn-outline !py-1.5" style="font-size:.72rem;" for="ppp-pasta-file"><i class="fa-solid fa-folder-plus"></i> Adicionar documento(s)</label>
           <input type="file" id="ppp-pasta-file" accept=".pdf,image/*" multiple class="hidden" onchange="onPastaDocumentosSelect('ppp','ppp-pasta-lista',event)">
+          <button type="button" id="ppp-btn-emitir" class="btn btn-outline hidden !py-1.5" style="font-size:.72rem; color:var(--secondary); border-color:var(--secondary);" onclick="emitirPppPdfDoModal()" title="Gera um PDF do PPP com os dados preenchidos neste formulário e adiciona à pasta"><i class="fa-solid fa-file-pdf"></i> Emitir PPP (PDF)</button>
         </div>
         <div id="ppp-pasta-lista" class="flex flex-col gap-1.5"></div>
       </div>
@@ -1853,15 +1854,20 @@ function semearDadosDemonstracao(){
   // montados diretamente aqui para não depender de renderAll() durante o
   // carregamento inicial da página.
   state.pppRegistros = [
-    { id:gerarId(), colaboradorId:idPorNome['Bruno Almeida Costa'], cargoFuncao:'Soldador', setorLocal:'Produção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemSolda,
-      documentos:[ docPastaSimulado('laudo-exposicao-bruno.pdf', 'Laudo Técnico de Exposição a Agentes Nocivos', ['Colaborador: Bruno Almeida Costa', 'Agente: Fumos de solda', 'Origem: PGR - Fábrica A']) ] },
-    { id:gerarId(), colaboradorId:idPorNome['Larissa Freitas Melo'], cargoFuncao:'Soldador', setorLocal:'Produção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemSolda,
-      documentos:[ docPastaSimulado('laudo-exposicao-larissa.pdf', 'Laudo Técnico de Exposição a Agentes Nocivos', ['Colaboradora: Larissa Freitas Melo', 'Agente: Fumos de solda', 'Origem: PGR - Fábrica A']) ] },
-    { id:gerarId(), colaboradorId:idPorNome['Carlos Eduardo Santos'], cargoFuncao:'Eletricista', setorLocal:'Manutenção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'fisico', descricaoAgente:'Ruído', intensidadeConcentracao:'87 dB(A)', tecnicaUtilizada:'NHO-01', epcEficaz:'sim', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemRuido,
-      documentos:[ docPastaSimulado('laudo-exposicao-carlos.pdf', 'Laudo Técnico de Exposição a Agentes Nocivos', ['Colaborador: Carlos Eduardo Santos', 'Agente: Ruído — 87 dB(A)', 'Origem: PGR - Fábrica A']) ] },
-    { id:gerarId(), colaboradorId:idPorNome['Ricardo Nunes Silva'], cargoFuncao:'Mecânico', setorLocal:'Manutenção', dataInicio:addDays(-400), dataFim:addDays(-30), tipoAgente:'fisico', descricaoAgente:'Vibração de corpo inteiro', intensidadeConcentracao:'', tecnicaUtilizada:'', epcEficaz:'na', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva', responsavelBiologico:'Dra. Camila Rocha - CRM 54321', dataEmissaoPPP:addDays(-25), observacoes:'PPP emitido por ocasião de mudança de função',
-      documentos:[ docPastaSimulado('ppp-emitido-ricardo.pdf', 'Perfil Profissiográfico Previdenciário (PPP)', ['Colaborador: Ricardo Nunes Silva', 'Cargo: Mecânico', `Emissão: ${formatarDataBR(addDays(-25))}`, 'Responsável biológico: Dra. Camila Rocha - CRM 54321']) ] },
+    { id:gerarId(), colaboradorId:idPorNome['Bruno Almeida Costa'], cargoFuncao:'Soldador', setorLocal:'Produção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemSolda },
+    { id:gerarId(), colaboradorId:idPorNome['Larissa Freitas Melo'], cargoFuncao:'Soldador', setorLocal:'Produção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'quimico', descricaoAgente:'Fumos de solda', intensidadeConcentracao:'Acima do limite de tolerância', tecnicaUtilizada:'NHO-01', epcEficaz:'nao', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemSolda },
+    { id:gerarId(), colaboradorId:idPorNome['Carlos Eduardo Santos'], cargoFuncao:'Eletricista', setorLocal:'Manutenção', dataInicio:addDays(-200), dataFim:'', tipoAgente:'fisico', descricaoAgente:'Ruído', intensidadeConcentracao:'87 dB(A)', tecnicaUtilizada:'NHO-01', epcEficaz:'sim', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva - CREA 12345', responsavelBiologico:'', dataEmissaoPPP:'', observacoes:'Gerado automaticamente a partir do PGR (inventário de riscos).', origemPgrId:pgrId1, origemPgrItemId:itemRuido },
+    { id:gerarId(), colaboradorId:idPorNome['Ricardo Nunes Silva'], cargoFuncao:'Mecânico', setorLocal:'Manutenção', dataInicio:addDays(-400), dataFim:addDays(-30), tipoAgente:'fisico', descricaoAgente:'Vibração de corpo inteiro', intensidadeConcentracao:'', tecnicaUtilizada:'', epcEficaz:'na', epiEficaz:'sim', responsavelAmbiental:'Eng. Marcos Silva', responsavelBiologico:'Dra. Camila Rocha - CRM 54321', dataEmissaoPPP:addDays(-25), observacoes:'PPP emitido por ocasião de mudança de função' },
   ];
+  // Anexa a cada PPP de demonstração o PDF completo, gerado pelo mesmo
+  // mecanismo do botão "Emitir PPP (PDF)" — assim o que aparece na pasta de
+  // documentos do demo é idêntico ao que a emissão real produziria.
+  state.pppRegistros.forEach(r => {
+    const c = colaboradorPorId(r.colaboradorId);
+    if(!c) return;
+    const pdf = construirPppPdf(dadosPppParaPdf(r, c));
+    r.documentos = [ anexoPppEmitido(pdf, c.nome) ];
+  });
 }
 
 function normalizarTexto(txt){
@@ -5554,6 +5560,7 @@ function renderPpp(){
       <td>${r.epiEficaz === 'sim' ? '<span class="badge badge-verde">Sim</span>' : r.epiEficaz === 'nao' ? '<span class="badge badge-vermelho">Não</span>' : '—'}</td>
       <td><span class="badge badge-${r._situacao.cor}"><span class="badge-dot" style="background:currentColor;"></span>${escapeHtml(r._situacao.label)}</span></td>
       <td class="no-print">
+        <button class="btn btn-ghost !p-1.5" style="color:var(--secondary);" title="Emitir PPP (PDF)" onclick="emitirPppPdf('${r.id}')"><i class="fa-solid fa-file-pdf"></i></button>
         <button class="btn btn-ghost !p-1.5" title="Editar" onclick="openPppModal('${r.id}')"><i class="fa-solid fa-pen"></i></button>
         <button class="btn btn-ghost !p-1.5" style="color:var(--vermelho);" title="Excluir" onclick="pedirExclusaoPpp('${r.id}')"><i class="fa-solid fa-trash"></i></button>
       </td>
@@ -5620,6 +5627,7 @@ function openPppModal(id){
   document.getElementById('ppp-colaborador-id').value = '';
   document.getElementById('ppp-colaborador-erro').classList.add('hidden');
   document.getElementById('ppp-btn-excluir').classList.toggle('hidden', !id);
+  document.getElementById('ppp-btn-emitir').classList.toggle('hidden', !id);
   atualizarBannerOrigemPpp(null);
   pastasDocumentosTemp.ppp = [];
 
@@ -5661,6 +5669,187 @@ function openPppModal(id){
 }
 
 function closePppModal(){ document.getElementById('modal-ppp').classList.add('hidden'); }
+
+/* --------------------------------------------------------------------
+   14b. EMISSÃO DO PPP EM PDF
+   Gera um PPP formatado (dados do trabalhador, do empregador, do agente
+   nocivo, responsáveis técnicos etc.) a partir dos dados já cadastrados —
+   nada precisa ser digitado de novo. Usado tanto pela emissão em lote
+   (botão na tabela, sobre o registro já salvo) quanto pela emissão dentro
+   do modal (sobre os valores atuais do formulário, mesmo antes de salvar).
+   -------------------------------------------------------------------- */
+function construirPppPdf(d){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  // state.config só existe depois de carregarConfiguracoes() — mas este PDF
+  // também é gerado durante o seed de demonstração, que roda antes disso.
+  const cfg = state.config || CONFIG_PADRAO;
+  const nomeEmpresa = cfg.nome || 'SST Vencimentos';
+  const [pr, pg, pb] = hexParaRgbArray((cfg.cores && cfg.cores.primaria) || CONFIG_PADRAO.cores.primaria);
+  const logoEmbedavel = cfg.logoDataUrl && /^data:image\/(png|jpe?g)/i.test(cfg.logoDataUrl);
+
+  let y = 55;
+  if(logoEmbedavel){
+    try{
+      const formatoImg = /^data:image\/png/i.test(cfg.logoDataUrl) ? 'PNG' : 'JPEG';
+      doc.addImage(cfg.logoDataUrl, formatoImg, 40, y - 28, 34, 34);
+    }catch(e){ /* segue sem logo se a imagem não carregar */ }
+  }
+  doc.setFont(undefined, 'bold'); doc.setFontSize(10.5); doc.setTextColor(90,90,90);
+  doc.text(nomeEmpresa, pageW - 40, y - 12, { align:'right' });
+  doc.setFont(undefined, 'bold'); doc.setFontSize(17); doc.setTextColor(20,20,20);
+  doc.text('Perfil Profissiográfico Previdenciário (PPP)', pageW/2, y + 12, { align:'center' });
+  doc.setDrawColor(pr, pg, pb); doc.setLineWidth(1.4);
+  doc.line(40, y + 24, pageW - 40, y + 24);
+  y += 50;
+
+  function secao(titulo){
+    if(y > 760){ doc.addPage(); y = 55; }
+    doc.setFont(undefined, 'bold'); doc.setFontSize(10.5); doc.setTextColor(pr, pg, pb);
+    doc.text(titulo.toUpperCase(), 40, y);
+    doc.setDrawColor(225); doc.setLineWidth(0.6);
+    doc.line(40, y + 5, pageW - 40, y + 5);
+    y += 22;
+  }
+  function campo(label, valor){
+    if(y > 780){ doc.addPage(); y = 55; }
+    doc.setFont(undefined, 'bold'); doc.setFontSize(9); doc.setTextColor(115,115,115);
+    doc.text(label, 40, y);
+    doc.setFont(undefined, 'normal'); doc.setFontSize(10.5); doc.setTextColor(25,25,25);
+    doc.text(String(valor && String(valor).trim() ? valor : '—'), 195, y);
+    y += 18;
+  }
+
+  secao('Dados do trabalhador');
+  campo('Nome:', d.nome);
+  campo('Matrícula:', d.matricula);
+  campo('CPF:', d.cpf);
+  campo('Cargo/Função:', d.cargoFuncao);
+  campo('Setor/Local:', d.setorLocal);
+  y += 6;
+
+  secao('Dados do empregador');
+  campo('Empresa:', d.empresa);
+  campo('Unidade:', d.unidade);
+  campo('Cliente/Contrato:', [d.cliente, d.contrato].filter(Boolean).join(' / '));
+  y += 6;
+
+  secao('Registro ambiental — exposição a agentes nocivos');
+  campo('Período de exposição:', `${d.dataInicio ? formatarDataBR(d.dataInicio) : '—'} até ${d.dataFim ? formatarDataBR(d.dataFim) : 'atual'}`);
+  campo('Tipo de agente:', PPP_AGENTES[d.tipoAgente] || d.tipoAgente);
+  campo('Descrição do agente:', d.descricaoAgente);
+  campo('Intensidade/Concentração:', d.intensidadeConcentracao);
+  campo('Técnica utilizada:', d.tecnicaUtilizada);
+  campo('EPC eficaz:', d.epcEficaz === 'sim' ? 'Sim' : d.epcEficaz === 'nao' ? 'Não' : 'Não se aplica');
+  campo('EPI eficaz:', d.epiEficaz === 'sim' ? 'Sim' : d.epiEficaz === 'nao' ? 'Não' : 'Não se aplica');
+  if(d.origemTexto) campo('Origem:', d.origemTexto);
+  y += 6;
+
+  secao('Responsáveis técnicos');
+  campo('Registros ambientais:', d.responsavelAmbiental);
+  campo('Monitoramento biológico:', d.responsavelBiologico);
+  y += 6;
+
+  if(d.observacoes){
+    secao('Observações');
+    doc.setFont(undefined, 'normal'); doc.setFontSize(10); doc.setTextColor(40,40,40);
+    const linhas = doc.splitTextToSize(d.observacoes, pageW - 80);
+    if(y + linhas.length*14 > 800){ doc.addPage(); y = 55; }
+    doc.text(linhas, 40, y);
+    y += linhas.length * 14 + 6;
+  }
+
+  doc.setFont(undefined, 'normal'); doc.setFontSize(8.5); doc.setTextColor(150,150,150);
+  doc.text(`Emitido em ${new Date().toLocaleDateString('pt-BR')} — gerado automaticamente pelo ${nomeEmpresa} a partir dos dados cadastrados no sistema.`, 40, 815);
+  return doc;
+}
+
+// Monta os dados de entrada do PDF a partir de um registro de PPP já salvo
+// (usado pela emissão em lote, direto na tabela).
+function dadosPppParaPdf(r, c){
+  const pgr = r.origemPgrId ? state.pgrRegistros.find(p => p.id === r.origemPgrId) : null;
+  return {
+    nome: c.nome, matricula: c.matricula, cpf: c.cpf,
+    empresa: c.empresa, unidade: c.unidade, cliente: c.cliente, contrato: c.contrato,
+    cargoFuncao: r.cargoFuncao || c.cargo, setorLocal: r.setorLocal || c.setor,
+    dataInicio: r.dataInicio, dataFim: r.dataFim,
+    tipoAgente: r.tipoAgente, descricaoAgente: r.descricaoAgente,
+    intensidadeConcentracao: r.intensidadeConcentracao, tecnicaUtilizada: r.tecnicaUtilizada,
+    epcEficaz: r.epcEficaz, epiEficaz: r.epiEficaz,
+    responsavelAmbiental: r.responsavelAmbiental, responsavelBiologico: r.responsavelBiologico,
+    observacoes: r.observacoes,
+    origemTexto: pgr ? `Gerado a partir do ${PGR_TIPOS[pgr.tipoPrograma] || 'PGR/PPRA'} — elaborado por ${pgr.elaboradoPor || '—'}` : '',
+  };
+}
+
+// Empacota um doc jsPDF já construído no mesmo formato usado pela pasta de
+// documentos ({id, descricao, nomeArquivo, dataUrl, tamanho}).
+function anexoPppEmitido(doc, nomeColaborador){
+  const nomeArquivo = `ppp-${normalizarTexto(nomeColaborador).replace(/\s+/g,'-')}-${formatarDataISO(new Date())}.pdf`;
+  return { id: gerarId(), descricao:'Perfil Profissiográfico Previdenciário (PPP) — emitido pelo sistema', nomeArquivo, dataUrl: doc.output('datauristring'), tamanho:0 };
+}
+
+// Emissão a partir da TABELA: opera direto sobre o registro já salvo, baixa
+// o PDF e também grava uma cópia na pasta de documentos daquele PPP.
+function emitirPppPdf(id){
+  const r = state.pppRegistros.find(x => x.id === id);
+  if(!r) return;
+  const c = colaboradorPorId(r.colaboradorId);
+  if(!c){ showToast('Colaborador não encontrado para este PPP.', 'erro'); return; }
+  const doc = construirPppPdf(dadosPppParaPdf(r, c));
+  const anexo = anexoPppEmitido(doc, c.nome);
+  doc.save(anexo.nomeArquivo);
+  if(!r.documentos) r.documentos = [];
+  r.documentos.push(anexo);
+  if(!r.dataEmissaoPPP) r.dataEmissaoPPP = formatarDataISO(new Date());
+  salvarStorage();
+  renderAll();
+  showToast('PPP emitido em PDF e adicionado à pasta de documentos deste registro.', 'sucesso');
+}
+
+// Emissão a partir do MODAL: usa os valores atuais do formulário (mesmo que
+// ainda não tenham sido salvos), e só entra de fato na pasta de documentos
+// quando o usuário clicar em "Salvar registro" — igual a qualquer outro
+// anexo adicionado durante a edição.
+function emitirPppPdfDoModal(){
+  const colaboradorId = document.getElementById('ppp-colaborador-id').value;
+  const c = colaboradorPorId(colaboradorId);
+  if(!c){
+    document.getElementById('ppp-colaborador-erro').classList.remove('hidden');
+    showToast('Selecione um colaborador válido antes de emitir o PPP.', 'erro');
+    return;
+  }
+  const idAtual = document.getElementById('ppp-id').value;
+  const registroAtual = idAtual ? state.pppRegistros.find(x => x.id === idAtual) : null;
+  const pgr = registroAtual && registroAtual.origemPgrId ? state.pgrRegistros.find(p => p.id === registroAtual.origemPgrId) : null;
+  const dados = {
+    nome: c.nome, matricula: c.matricula, cpf: c.cpf,
+    empresa: c.empresa, unidade: c.unidade, cliente: c.cliente, contrato: c.contrato,
+    cargoFuncao: document.getElementById('ppp-cargo-funcao').value.trim() || c.cargo,
+    setorLocal: document.getElementById('ppp-setor-local').value.trim() || c.setor,
+    dataInicio: document.getElementById('ppp-data-inicio').value,
+    dataFim: document.getElementById('ppp-data-fim').value,
+    tipoAgente: document.getElementById('ppp-tipo-agente').value,
+    descricaoAgente: document.getElementById('ppp-descricao-agente').value.trim(),
+    intensidadeConcentracao: document.getElementById('ppp-intensidade').value.trim(),
+    tecnicaUtilizada: document.getElementById('ppp-tecnica').value.trim(),
+    epcEficaz: document.getElementById('ppp-epc-eficaz').value,
+    epiEficaz: document.getElementById('ppp-epi-eficaz').value,
+    responsavelAmbiental: document.getElementById('ppp-resp-ambiental').value.trim(),
+    responsavelBiologico: document.getElementById('ppp-resp-biologico').value.trim(),
+    observacoes: document.getElementById('ppp-observacoes').value.trim(),
+    origemTexto: pgr ? `Gerado a partir do ${PGR_TIPOS[pgr.tipoPrograma] || 'PGR/PPRA'} — elaborado por ${pgr.elaboradoPor || '—'}` : '',
+  };
+  const doc = construirPppPdf(dados);
+  const anexo = anexoPppEmitido(doc, c.nome);
+  doc.save(anexo.nomeArquivo);
+  pastasDocumentosTemp.ppp.push(anexo);
+  renderPastaDocumentos('ppp', 'ppp-pasta-lista');
+  const campoEmissao = document.getElementById('ppp-data-emissao');
+  if(!campoEmissao.value) campoEmissao.value = formatarDataISO(new Date());
+  showToast('PPP emitido em PDF. Clique em "Salvar registro" para manter o anexo.', 'sucesso');
+}
 
 function salvarPpp(evt){
   evt.preventDefault();
