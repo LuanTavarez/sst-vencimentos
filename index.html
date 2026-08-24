@@ -937,9 +937,10 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
             <button class="btn btn-outline" onclick="exportarBackup()"><i class="fa-solid fa-download"></i> Exportar banco (.json)</button>
             <label class="btn btn-outline" for="cfg-backup-file"><i class="fa-solid fa-upload"></i> Importar / restaurar backup</label>
             <input type="file" id="cfg-backup-file" accept=".json" class="hidden" onchange="importarBackup(event)">
+            <button class="btn btn-outline" style="color:var(--secondary); border-color:var(--secondary);" onclick="carregarDadosDemonstracao()"><i class="fa-solid fa-flask"></i> Carregar dados de demonstração</button>
             <button class="btn btn-danger" onclick="limparBancoDados()"><i class="fa-solid fa-trash"></i> Limpar banco de dados</button>
           </div>
-          <p class="text-xs mt-2" style="color:var(--ink-soft);">O backup inclui colaboradores, treinamentos, tipos customizados e todas as configurações visuais.</p>
+          <p class="text-xs mt-2" style="color:var(--ink-soft);">O backup inclui colaboradores, treinamentos, tipos customizados e todas as configurações visuais. "Carregar dados de demonstração" preenche o sistema com exemplos em todos os módulos (substitui os dados atuais).</p>
         </div>
 
         <div class="flex items-center gap-2 mt-4">
@@ -3850,6 +3851,26 @@ function importarBackup(evt){
     evt.target.value = '';
   };
   reader.readAsText(file);
+}
+
+// Preenche o sistema com os mesmos dados de demonstração usados no primeiro
+// acesso — disponível a qualquer momento em Configurações, para quem quer
+// ver o sistema populado sem precisar limpar o localStorage manualmente
+// (ex.: o "primeiro acesso" automático só dispara quando o navegador nunca
+// salvou nada antes; depois disso, este botão é o jeito de trazer os
+// exemplos de volta).
+function carregarDadosDemonstracao(){
+  abrirConfirmacao(
+    'Carregar dados de demonstração?',
+    'Isso substitui todos os colaboradores, treinamentos, registros de saúde/INSS, turmas, PPP e PGR/PPRA atuais por dados de exemplo. Considere exportar um backup antes, se já tiver dados reais cadastrados.',
+    () => {
+      semearDadosDemonstracao();
+      salvarStorage();
+      renderAll();
+      showToast('Dados de demonstração carregados.', 'sucesso');
+    },
+    { confirmLabel:'Sim, carregar exemplos' }
+  );
 }
 
 function limparBancoDados(){
