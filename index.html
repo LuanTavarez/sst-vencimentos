@@ -310,6 +310,11 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
         <span class="nav-label">Treinamentos</span>
         <span id="nav-count-treinamentos" class="nav-label ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full" style="background:var(--sidebar-soft); color:#B9C0DA;">0</span>
       </div>
+      <div class="nav-item" data-view="aso" title="ASO — Atestado de Saúde Ocupacional" onclick="goToView('aso')">
+        <i class="fa-solid fa-notes-medical" style="width:18px; text-align:center;"></i>
+        <span class="nav-label">ASO</span>
+        <span id="nav-count-aso" class="nav-label ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full" style="background:var(--vermelho); color:#fff;">0</span>
+      </div>
       <div class="nav-item" data-view="saude" title="Saúde / INSS (SESMT)" onclick="goToView('saude')">
         <i class="fa-solid fa-heart-pulse" style="width:18px; text-align:center;"></i>
         <span class="nav-label">Saúde / INSS</span>
@@ -411,6 +416,13 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
           <svg class="w-5 h-5 flex-shrink-0" style="color:var(--vermelho);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
           <p class="text-sm font-semibold" style="color:var(--vermelho);"><span id="critical-count">0</span> documento(s) vencido(s) requerem ação imediata.</p>
           <button class="ml-auto btn btn-ghost" style="color:var(--vermelho);" onclick="goToView('alertas')">Ver alertas →</button>
+        </div>
+
+        <!-- Resumo de ASO -->
+        <div id="aso-dashboard-banner" class="hidden mb-5 rounded-xl px-4 py-3 flex flex-wrap items-center gap-3" style="background:var(--vermelho-bg); border:1px solid #F3B4C0;">
+          <svg class="w-5 h-5 flex-shrink-0" style="color:var(--vermelho);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 6v6c0 5 3.8 8.7 9 10 5.2-1.3 9-5 9-10V6l-9-4Z"/><path d="M12 8v5M12 16h.01"/></svg>
+          <p class="text-sm font-semibold" style="color:var(--vermelho);"><span id="aso-dashboard-count">0</span> ASO(s) vencido(s) ou com conclusão "Inapto" — atenção imediata do SESMT.</p>
+          <button class="ml-auto btn btn-ghost" style="color:var(--vermelho);" onclick="goToView('aso')">Ver ASO →</button>
         </div>
 
         <!-- Resumo de Saúde / INSS (SESMT) -->
@@ -573,6 +585,66 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
       </section>
 
       <!-- ======================= VIEW: SAÚDE / INSS (SESMT) ======================= -->
+      <!-- ======================= VIEW: ASO (Atestado de Saúde Ocupacional) ======================= -->
+      <section id="view-aso" class="hidden">
+        <div class="chart-card mb-4">
+          <div class="flex items-center justify-between mb-1 gap-2 flex-wrap">
+            <h3 class="!text-sm !mb-0">ASO — Atestado de Saúde Ocupacional</h3>
+            <div class="flex items-center gap-2 no-print">
+              <button class="btn btn-outline" onclick="exportAsoExcel()" title="Exportar Excel"><i class="fa-solid fa-file-excel"></i> <span class="hidden sm:inline">Excel</span></button>
+              <button class="btn btn-outline" onclick="exportAsoPDF()" title="Exportar PDF"><i class="fa-solid fa-file-pdf"></i> <span class="hidden sm:inline">PDF</span></button>
+              <button class="btn btn-outline" onclick="printView()" title="Imprimir"><i class="fa-solid fa-print"></i> <span class="hidden sm:inline">Imprimir</span></button>
+              <button class="btn btn-primary" onclick="openAsoModal()"><i class="fa-solid fa-plus"></i> Novo ASO</button>
+            </div>
+          </div>
+          <p class="text-xs" style="color:var(--ink-soft);">Exames admissionais, periódicos, de retorno ao trabalho, mudança de função e demissionais — com médico examinador, conclusão (apto/inapto) e vencimento controlado.</p>
+        </div>
+
+        <div id="aso-kpi-grid" class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4"></div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4 no-print">
+          <div class="chart-card"><h3>Distribuição por tipo de ASO</h3><div class="chart-box"><canvas id="chart-aso-tipo"></canvas></div></div>
+          <div class="chart-card"><h3>Vencimentos por mês</h3><div class="chart-box"><canvas id="chart-aso-mes"></canvas></div></div>
+        </div>
+
+        <div class="chart-card mb-4 no-print">
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div><label class="field-label">Buscar colaborador</label><input id="aso-f-busca" class="field-input" placeholder="Nome ou matrícula..." oninput="renderAso()"></div>
+            <div><label class="field-label">Tipo de ASO</label>
+              <select id="aso-f-tipo" class="field-select" onchange="renderAso()">
+                <option value="">Todos</option>
+                <option value="admissional">Admissional</option>
+                <option value="periodico">Periódico</option>
+                <option value="retorno">Retorno ao Trabalho</option>
+                <option value="mudanca-funcao">Mudança de Função</option>
+                <option value="demissional">Demissional</option>
+              </select>
+            </div>
+            <div><label class="field-label">Conclusão</label>
+              <select id="aso-f-conclusao" class="field-select" onchange="renderAso()">
+                <option value="">Todas</option>
+                <option value="apto">Apto</option>
+                <option value="apto-restricoes">Apto com restrições</option>
+                <option value="inapto">Inapto</option>
+              </select>
+            </div>
+            <div class="flex items-end"><button class="btn btn-ghost w-full" onclick="limparFiltrosAso()">Limpar filtros</button></div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr id="aso-head-row"></tr></thead>
+            <tbody id="aso-body"></tbody>
+          </table>
+          <div id="aso-empty" class="empty-state hidden">
+            <svg class="w-10 h-10 mb-2" style="color:var(--ink-faint);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 12h6M9 16h6M9 8h1"/><path d="M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/></svg>
+            <p class="font-semibold">Nenhum ASO encontrado</p>
+            <p class="text-xs mt-1">Clique em "Novo ASO" para registrar um exame ocupacional.</p>
+          </div>
+        </div>
+      </section>
+
       <section id="view-saude" class="hidden">
         <div class="chart-card mb-4">
           <div class="flex items-center justify-between mb-1 gap-2 flex-wrap">
@@ -875,6 +947,7 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-registros" checked> Registros (grade de colaboradores)</label>
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-alertas" checked> Alertas</label>
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-treinamentos" checked> Treinamentos (agenda de turmas)</label>
+              <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-aso" checked> ASO (Atestado de Saúde Ocupacional)</label>
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-saude" checked> Saúde / INSS (SESMT)</label>
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-pgr" checked> PGR / PPRA</label>
               <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="cfg-modulo-ppp" checked> PPP (Perfil Profissiográfico)</label>
@@ -1147,6 +1220,99 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
       <button type="button" class="btn btn-outline" onclick="closeTipoPromptModal()">Cancelar</button>
       <button type="button" class="btn btn-primary" id="tipo-prompt-confirm-btn">Adicionar</button>
     </div>
+  </div>
+</div>
+
+<!-- ==============================================================
+     MODAL: ASO (ATESTADO DE SAÚDE OCUPACIONAL)
+     ============================================================== -->
+<div id="modal-aso" class="modal-overlay hidden">
+  <div class="modal-box" style="max-width:760px;">
+    <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid var(--border);">
+      <div>
+        <h2 id="modal-aso-title" class="text-base font-extrabold">Novo ASO</h2>
+        <p class="text-xs" style="color:var(--ink-soft);">Atestado de Saúde Ocupacional de um colaborador já cadastrado</p>
+      </div>
+      <button class="btn-ghost btn" onclick="closeAsoModal()">✕</button>
+    </div>
+    <form id="form-aso" class="px-6 py-5" onsubmit="salvarAso(event)">
+      <input type="hidden" id="aso-id">
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="field-label">Colaborador *</label>
+          <input required id="aso-colaborador-busca" class="field-input" list="dl-colaboradores-aso" placeholder="Digite nome ou matrícula..." autocomplete="off" oninput="onAsoColaboradorInput()">
+          <datalist id="dl-colaboradores-aso"></datalist>
+          <input type="hidden" id="aso-colaborador-id">
+          <p id="aso-colaborador-erro" class="text-xs mt-1 hidden" style="color:var(--vermelho);">Selecione um colaborador válido da lista (já cadastrado em Registros).</p>
+        </div>
+        <div>
+          <label class="field-label">Tipo de ASO *</label>
+          <select required id="aso-tipo" class="field-select">
+            <option value="admissional">Admissional</option>
+            <option value="periodico">Periódico</option>
+            <option value="retorno">Retorno ao Trabalho</option>
+            <option value="mudanca-funcao">Mudança de Função</option>
+            <option value="demissional">Demissional</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3">
+        <div><label class="field-label">Data de realização *</label><input required type="date" id="aso-data-realizacao" class="field-input" onchange="recalcVencimentoAso()"></div>
+        <div><label class="field-label">Validade (meses)</label><input type="number" min="0" id="aso-validade-meses" class="field-input" value="12" onchange="recalcVencimentoAso()"></div>
+        <div>
+          <label class="field-label">Data de vencimento</label>
+          <input type="date" id="aso-data-vencimento" class="field-input" onchange="atualizarAutoVencimentoAso(false)">
+          <label class="flex items-center gap-1.5 mt-1 text-xs" style="color:var(--ink-soft);"><input type="checkbox" id="aso-auto-vencimento" checked onchange="atualizarAutoVencimentoAso(this.checked)"> Calcular automaticamente</label>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+        <div><label class="field-label">Médico examinador</label><input id="aso-medico" class="field-input" placeholder="Nome do médico do trabalho"></div>
+        <div><label class="field-label">CRM</label><input id="aso-crm" class="field-input" placeholder="Ex: CRM 12345/UF"></div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+        <div><label class="field-label">Conclusão</label>
+          <select id="aso-conclusao" class="field-select">
+            <option value="">Não informado</option>
+            <option value="apto">Apto</option>
+            <option value="apto-restricoes">Apto com restrições</option>
+            <option value="inapto">Inapto</option>
+          </select>
+        </div>
+        <div><label class="field-label">Situação</label>
+          <select id="aso-situacao-manual" class="field-select">
+            <option value="">Automática (calculada pelo sistema)</option>
+            <option value="Dispensado">Dispensado</option>
+            <option value="Não aplicável">Não aplicável</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mt-3"><label class="field-label">Riscos avaliados</label><textarea id="aso-riscos" class="field-input" rows="2" placeholder="Ex: Ruído, agentes químicos, esforço físico..."></textarea></div>
+      <div class="mt-3"><label class="field-label">Exames complementares</label><textarea id="aso-exames" class="field-input" rows="2" placeholder="Ex: Audiometria, espirometria, hemograma..."></textarea></div>
+      <div class="mt-3"><label class="field-label">Observações</label><textarea id="aso-observacoes" class="field-input" rows="2"></textarea></div>
+
+      <div class="mt-3">
+        <label class="field-label">Pasta de documentos (ASO assinado, exames...)</label>
+        <div class="flex items-center gap-2 flex-wrap mb-2">
+          <label class="btn btn-outline !py-1.5" style="font-size:.72rem;" for="aso-pasta-file"><i class="fa-solid fa-folder-plus"></i> Adicionar documento(s)</label>
+          <input type="file" id="aso-pasta-file" accept=".pdf,image/*" multiple class="hidden" onchange="onPastaDocumentosSelect('aso','aso-pasta-lista',event)">
+        </div>
+        <div id="aso-pasta-lista" class="flex flex-col gap-1.5"></div>
+      </div>
+
+      <div class="flex items-center justify-between gap-2 mt-6 pt-4" style="border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-danger hidden" id="aso-btn-excluir" onclick="pedirExclusaoAso()"><i class="fa-solid fa-trash"></i> Excluir registro</button>
+        <div class="flex justify-end gap-2 ml-auto">
+          <button type="button" class="btn btn-outline" onclick="closeAsoModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar registro</button>
+        </div>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -1641,6 +1807,7 @@ const DICIONARIO_CAMPOS = {
 let state = {
   records: [],            // registros de documentos/treinamentos
   customTypes: [],        // tipos de treinamento cadastrados pelo usuário
+  asoRegistros: [],        // ASO: exames ocupacionais (admissional, periódico, retorno, mudança de função, demissional)
   saudeRegistros: [],      // registros de Saúde/INSS (SESMT): afastamentos, CAT, benefícios, restrições
   turmas: [],              // agenda de turmas/sessões de treinamento (com participantes)
   pppRegistros: [],         // Perfil Profissiográfico Previdenciário: histórico de exposição a agentes nocivos
@@ -1658,6 +1825,20 @@ let state = {
 
 let charts = {}; // instâncias Chart.js ativas, por id de canvas
 
+// Rótulos e ícones dos tipos de ASO, e das conclusões possíveis do exame.
+const ASO_TIPOS = {
+  admissional:        { label:'Admissional', icone:'fa-user-plus' },
+  periodico:          { label:'Periódico', icone:'fa-arrows-rotate' },
+  retorno:            { label:'Retorno ao Trabalho', icone:'fa-house-medical' },
+  'mudanca-funcao':   { label:'Mudança de Função', icone:'fa-right-left' },
+  demissional:        { label:'Demissional', icone:'fa-user-minus' },
+};
+const ASO_CONCLUSOES = {
+  apto:               { label:'Apto', cor:'verde' },
+  'apto-restricoes':  { label:'Apto com restrições', cor:'amarelo' },
+  inapto:             { label:'Inapto', cor:'vermelho' },
+};
+
 // Rótulos e ícones dos tipos de registro de Saúde/INSS (SESMT).
 const SAUDE_TIPOS = {
   afastamento: { label:'Afastamento/Atestado', icone:'fa-file-waveform' },
@@ -1674,6 +1855,7 @@ function salvarStorage(){
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       records: state.records,
       customTypes: state.customTypes,
+      asoRegistros: state.asoRegistros,
       saudeRegistros: state.saudeRegistros,
       turmas: state.turmas,
       pppRegistros: state.pppRegistros,
@@ -1695,6 +1877,7 @@ function carregarStorage(){
       const data = JSON.parse(raw);
       state.records = Array.isArray(data.records) ? data.records : [];
       state.customTypes = Array.isArray(data.customTypes) ? data.customTypes : [];
+      state.asoRegistros = Array.isArray(data.asoRegistros) ? data.asoRegistros : [];
       state.saudeRegistros = Array.isArray(data.saudeRegistros) ? data.saudeRegistros : [];
       state.turmas = Array.isArray(data.turmas) ? data.turmas : [];
       state.pppRegistros = Array.isArray(data.pppRegistros) ? data.pppRegistros : [];
@@ -1815,6 +1998,19 @@ function semearDadosDemonstracao(){
 
   const idPorNome = {};
   state.records.forEach(c => idPorNome[c.nome] = c.id);
+
+  state.asoRegistros = [
+    { id:gerarId(), colaboradorId:idPorNome['Fernanda Oliveira Costa'], tipoAso:'periodico', dataRealizacao:addDays(-345), validadeMeses:12, autoVencimento:true, dataVencimento:addDays(20), situacaoManual:'', medicoExaminador:'Dra. Camila Rocha', crm:'CRM 54321', conclusao:'apto', riscosAvaliados:'Ruído, postura', examesComplementares:'Audiometria',observacoes:'',
+      documentos:[ docPastaSimulado('aso-periodico-fernanda.pdf', 'Atestado de Saúde Ocupacional — Periódico', ['Colaboradora: Fernanda Oliveira Costa', 'Médico: Dra. Camila Rocha - CRM 54321', 'Conclusão: Apto']) ] },
+    { id:gerarId(), colaboradorId:idPorNome['Bruno Almeida Costa'], tipoAso:'periodico', dataRealizacao:addDays(-380), validadeMeses:12, autoVencimento:true, dataVencimento:addDays(-15), situacaoManual:'', medicoExaminador:'Dr. Eduardo Nascimento', crm:'CRM 33210', conclusao:'inapto', riscosAvaliados:'Fumos de solda', examesComplementares:'Espirometria, Raio-X de tórax', observacoes:'Encaminhado para reavaliação respiratória.',
+      documentos:[ docPastaSimulado('aso-periodico-bruno.pdf', 'Atestado de Saúde Ocupacional — Periódico', ['Colaborador: Bruno Almeida Costa', 'Médico: Dr. Eduardo Nascimento - CRM 33210', 'Conclusão: Inapto', 'Observação: Encaminhado para reavaliação respiratória.']) ] },
+    { id:gerarId(), colaboradorId:idPorNome['Patrícia Gomes Freitas'], tipoAso:'admissional', dataRealizacao:addDays(-300), validadeMeses:12, autoVencimento:true, dataVencimento:addDays(65), situacaoManual:'', medicoExaminador:'Dra. Camila Rocha', crm:'CRM 54321', conclusao:'apto', riscosAvaliados:'Nenhum risco relevante identificado', examesComplementares:'', observacoes:'',
+      documentos:[ docPastaSimulado('aso-admissional-patricia.pdf', 'Atestado de Saúde Ocupacional — Admissional', ['Colaboradora: Patrícia Gomes Freitas', 'Médico: Dra. Camila Rocha - CRM 54321', 'Conclusão: Apto']) ] },
+    { id:gerarId(), colaboradorId:idPorNome['João Pedro Almeida'], tipoAso:'retorno', dataRealizacao:addDays(-38), validadeMeses:12, autoVencimento:true, dataVencimento:addDays(327), situacaoManual:'', medicoExaminador:'Dr. Eduardo Nascimento', crm:'CRM 33210', conclusao:'apto-restricoes', riscosAvaliados:'Movimentação de cargas', examesComplementares:'Avaliação ortopédica', observacoes:'Retorno após afastamento por acidente de trabalho (CAT-2026-0087) — restrição temporária para esforço físico intenso.',
+      documentos:[ docPastaSimulado('aso-retorno-joao.pdf', 'Atestado de Saúde Ocupacional — Retorno ao Trabalho', ['Colaborador: João Pedro Almeida', 'Médico: Dr. Eduardo Nascimento - CRM 33210', 'Conclusão: Apto com restrições', 'Observação: Retorno após CAT-2026-0087.']) ] },
+    { id:gerarId(), colaboradorId:idPorNome['Larissa Freitas Melo'], tipoAso:'mudanca-funcao', dataRealizacao:addDays(-90), validadeMeses:12, autoVencimento:true, dataVencimento:addDays(275), situacaoManual:'', medicoExaminador:'Dra. Camila Rocha', crm:'CRM 54321', conclusao:'apto', riscosAvaliados:'Fumos de solda', examesComplementares:'Espirometria', observacoes:'',
+      documentos:[ docPastaSimulado('aso-mudanca-funcao-larissa.pdf', 'Atestado de Saúde Ocupacional — Mudança de Função', ['Colaboradora: Larissa Freitas Melo', 'Médico: Dra. Camila Rocha - CRM 54321', 'Conclusão: Apto']) ] },
+  ];
 
   state.saudeRegistros = [
     { id:gerarId(), colaboradorId:idPorNome['Ricardo Nunes Silva'], tipo:'afastamento', dataInicio:addDays(-10), dataFim:'', observacoes:'Cirurgia no joelho', motivo:'Acidente de trabalho', cid:'S83', numeroCat:'', dataAcidente:'', tipoAcidente:'Típico', orgaoNotificado:'', situacaoCat:'Aberta', tipoBeneficio:'', numeroBeneficio:'', situacaoBeneficio:'Ativo', dataPericia:'', funcaoOrigem:'', descricaoRestricao:'',
@@ -2020,7 +2216,7 @@ function goToView(view){
   fecharSidebarMobile();
   state.view = view;
   document.querySelectorAll('.nav-item[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === view));
-  ['dashboard','registros','alertas','treinamentos','saude','pgr','ppp','configuracoes'].forEach(v => {
+  ['dashboard','registros','alertas','treinamentos','aso','saude','pgr','ppp','configuracoes'].forEach(v => {
     document.getElementById('view-'+v).classList.toggle('hidden', v !== view);
   });
   const titles = {
@@ -2028,6 +2224,7 @@ function goToView(view){
     registros: ['Registros', 'Consulte, filtre, edite e exclua os documentos cadastrados'],
     alertas:   ['Alertas Inteligentes', 'Documentos vencidos e próximos do vencimento, por urgência'],
     treinamentos: ['Treinamentos', 'Agenda de turmas/sessões de treinamento e controle de participantes'],
+    aso:       ['ASO', 'Atestados de Saúde Ocupacional — admissional, periódico, retorno, mudança de função e demissional'],
     saude:     ['Saúde / INSS (SESMT)', 'Afastamentos, CAT, benefícios previdenciários e restrições/readaptação'],
     pgr:       ['PGR / PPRA', 'Inventário de riscos por setor/função — gera PPP automaticamente'],
     ppp:       ['PPP', 'Histórico de exposição a agentes nocivos — Perfil Profissiográfico Previdenciário'],
@@ -2066,6 +2263,7 @@ function renderAll(){
   if(state.view === 'registros'){ popularFiltros(); renderTable(); }
   if(state.view === 'alertas') renderAlertas();
   if(state.view === 'treinamentos') renderTreinamentos();
+  if(state.view === 'aso') renderAso();
   if(state.view === 'saude') renderSaude();
   if(state.view === 'pgr') renderPgr();
   if(state.view === 'ppp') renderPpp();
@@ -2106,6 +2304,11 @@ function renderSidebarCounts(){
   const badge = document.getElementById('nav-count-alertas');
   badge.textContent = vencidos;
   badge.style.display = vencidos > 0 ? 'inline-flex' : 'none';
+
+  const asoCriticos = (state.asoRegistros||[]).filter(r => calcularSituacao(r).vencido || r.conclusao === 'inapto').length;
+  const badgeAso = document.getElementById('nav-count-aso');
+  badgeAso.textContent = asoCriticos;
+  badgeAso.style.display = asoCriticos > 0 ? 'inline-flex' : 'none';
 
   const abertosSaude = (state.saudeRegistros||[]).filter(r => calcularSituacaoSaude(r).aberto).length;
   const badgeSaude = document.getElementById('nav-count-saude');
@@ -2154,6 +2357,10 @@ function renderDashboard(){
 
   document.getElementById('critical-banner').classList.toggle('hidden', vencidos.length === 0);
   document.getElementById('critical-count').textContent = vencidos.length;
+
+  const asoCriticosDash = (state.asoRegistros||[]).filter(r => calcularSituacao(r).vencido || r.conclusao === 'inapto').length;
+  document.getElementById('aso-dashboard-banner').classList.toggle('hidden', asoCriticosDash === 0 || !state.config.modulos.aso);
+  document.getElementById('aso-dashboard-count').textContent = asoCriticosDash;
 
   const abertosSaudeDash = (state.saudeRegistros||[]).filter(r => calcularSituacaoSaude(r).aberto).length;
   document.getElementById('saude-dashboard-banner').classList.toggle('hidden', abertosSaudeDash === 0 || !state.config.modulos.saude);
@@ -3036,7 +3243,7 @@ function onDocumentosGeraisSelect(evt){
    instância guarda sua lista temporária em pastasDocumentosTemp[chave]
    enquanto o modal correspondente está aberto.
    -------------------------------------------------------------------- */
-let pastasDocumentosTemp = { pgr: [], ppp: [], saude: [] };
+let pastasDocumentosTemp = { pgr: [], ppp: [], saude: [], aso: [] };
 
 function renderPastaDocumentos(chave, containerId){
   const cont = document.getElementById(containerId);
@@ -3123,9 +3330,10 @@ function pedirExclusao(colaboradorId, treinamentoId){
 function pedirExclusaoColaborador(colaboradorId){
   abrirConfirmacao(
     'Excluir este colaborador?',
-    'Esta ação remove o colaborador, TODOS os treinamentos/documentos, registros de saúde/INSS e de PPP vinculados a ele, e o remove de qualquer turma em que estivesse inscrito. Não pode ser desfeita.',
+    'Esta ação remove o colaborador, TODOS os treinamentos/documentos, registros de ASO, saúde/INSS e de PPP vinculados a ele, e o remove de qualquer turma em que estivesse inscrito. Não pode ser desfeita.',
     () => {
       state.records = state.records.filter(x => x.id !== colaboradorId);
+      state.asoRegistros = (state.asoRegistros||[]).filter(r => r.colaboradorId !== colaboradorId);
       state.saudeRegistros = (state.saudeRegistros||[]).filter(r => r.colaboradorId !== colaboradorId);
       state.pppRegistros = (state.pppRegistros||[]).filter(r => r.colaboradorId !== colaboradorId);
       (state.turmas||[]).forEach(t => { t.participantes = (t.participantes||[]).filter(p => p.colaboradorId !== colaboradorId); });
@@ -3434,7 +3642,7 @@ const CONFIG_PADRAO = {
     primaria:'#1E4FD6', secundaria:'#7C3AED', acento:'#FFB100', sidebar:'#0D1120',
     verde:'#158A45', amarelo:'#B7791F', laranja:'#C2540A', vermelho:'#C81E3A', cinza:'#565F73',
   },
-  modulos: { dashboard:true, registros:true, alertas:true, treinamentos:true, saude:true, pgr:true, ppp:true, importar:true, ocr:true, novo:true, exportar:true },
+  modulos: { dashboard:true, registros:true, alertas:true, treinamentos:true, aso:true, saude:true, pgr:true, ppp:true, importar:true, ocr:true, novo:true, exportar:true },
   alertas: { d90:true, d60:true, d30:true, d15:true, d7:true, hoje:true },
 };
 
@@ -3563,7 +3771,7 @@ function aplicarConfiguracoes(cfg){
 
   const mapaModulos = {
     dashboard: ['[data-view="dashboard"]'], registros: ['[data-view="registros"]'], alertas: ['[data-view="alertas"]'],
-    treinamentos: ['[data-view="treinamentos"]'], saude: ['[data-view="saude"]'], pgr: ['[data-view="pgr"]'], ppp: ['[data-view="ppp"]'],
+    treinamentos: ['[data-view="treinamentos"]'], aso: ['[data-view="aso"]'], saude: ['[data-view="saude"]'], pgr: ['[data-view="pgr"]'], ppp: ['[data-view="ppp"]'],
     importar: ['#nav-action-importar'], ocr: ['#nav-action-ocr'], novo: ['#nav-action-novo', '#topbar-btn-novo'],
   };
   Object.entries(mapaModulos).forEach(([chave, seletores]) => {
@@ -3800,7 +4008,7 @@ function excluirTipoConfig(idx){
    16d. BACKUP E RESTAURAÇÃO
    -------------------------------------------------------------------- */
 function coletarBackup(){
-  return { versao:5, exportadoEm:new Date().toISOString(), records: state.records, customTypes: state.customTypes, saudeRegistros: state.saudeRegistros, turmas: state.turmas, pppRegistros: state.pppRegistros, pgrRegistros: state.pgrRegistros, config: state.config };
+  return { versao:5, exportadoEm:new Date().toISOString(), records: state.records, customTypes: state.customTypes, asoRegistros: state.asoRegistros, saudeRegistros: state.saudeRegistros, turmas: state.turmas, pppRegistros: state.pppRegistros, pgrRegistros: state.pgrRegistros, config: state.config };
 }
 
 function exportarBackup(){
@@ -3828,10 +4036,11 @@ function importarBackup(evt){
     }
     abrirConfirmacao(
       'Restaurar backup?',
-      'Isso vai SUBSTITUIR todos os dados atuais (colaboradores, saúde/INSS, turmas, PPP, PGR/PPRA, tipos e configurações). Deseja continuar?',
+      'Isso vai SUBSTITUIR todos os dados atuais (colaboradores, ASO, saúde/INSS, turmas, PPP, PGR/PPRA, tipos e configurações). Deseja continuar?',
       () => {
         state.records = Array.isArray(dados.records) ? dados.records : [];
         state.customTypes = Array.isArray(dados.customTypes) && dados.customTypes.length ? dados.customTypes : JSON.parse(JSON.stringify(TIPOS_PADRAO));
+        state.asoRegistros = Array.isArray(dados.asoRegistros) ? dados.asoRegistros : [];
         state.saudeRegistros = Array.isArray(dados.saudeRegistros) ? dados.saudeRegistros : [];
         state.turmas = Array.isArray(dados.turmas) ? dados.turmas : [];
         state.pppRegistros = Array.isArray(dados.pppRegistros) ? dados.pppRegistros : [];
@@ -3862,7 +4071,7 @@ function importarBackup(evt){
 function carregarDadosDemonstracao(){
   abrirConfirmacao(
     'Carregar dados de demonstração?',
-    'Isso substitui todos os colaboradores, treinamentos, registros de saúde/INSS, turmas, PPP e PGR/PPRA atuais por dados de exemplo. Considere exportar um backup antes, se já tiver dados reais cadastrados.',
+    'Isso substitui todos os colaboradores, treinamentos, registros de ASO, saúde/INSS, turmas, PPP e PGR/PPRA atuais por dados de exemplo. Considere exportar um backup antes, se já tiver dados reais cadastrados.',
     () => {
       semearDadosDemonstracao();
       salvarStorage();
@@ -3876,13 +4085,14 @@ function carregarDadosDemonstracao(){
 function limparBancoDados(){
   abrirConfirmacao(
     'Limpar banco de dados?',
-    'Isso vai apagar TODOS os colaboradores, treinamentos, registros de saúde/INSS, turmas, PPP e PGR/PPRA cadastrados. Esta ação não pode ser desfeita.',
+    'Isso vai apagar TODOS os colaboradores, treinamentos, registros de ASO, saúde/INSS, turmas, PPP e PGR/PPRA cadastrados. Esta ação não pode ser desfeita.',
     () => {
       abrirConfirmacao(
         'Tem certeza mesmo?',
         'Considere exportar um backup antes, na própria tela de Configurações.',
         () => {
           state.records = [];
+          state.asoRegistros = [];
           state.saudeRegistros = [];
           state.turmas = [];
           state.pppRegistros = [];
@@ -4076,6 +4286,303 @@ function removerSenhaAcesso(){
       showToast('Senha removida.', 'sucesso');
     },
     { confirmLabel:'Remover senha' }
+  );
+}
+
+/* --------------------------------------------------------------------
+   ASO (ATESTADO DE SAÚDE OCUPACIONAL) — exames admissional, periódico,
+   retorno ao trabalho, mudança de função e demissional. Cada registro é
+   vinculado a um colaborador já existente em state.records (colaboradorId),
+   sem duplicar o cadastro completo. Persistido em state.asoRegistros.
+   Reaproveita a mesma engine de classificação por vencimento usada em
+   Registros/Treinamentos (calcularSituacao), já que o ASO tem exatamente
+   o mesmo formato de campos relevantes (situacaoManual + dataVencimento).
+   -------------------------------------------------------------------- */
+function asoRegistrosCalculados(){
+  return state.asoRegistros.map(r => {
+    const c = colaboradorPorId(r.colaboradorId);
+    return { ...r, _colaborador: c, _situacao: calcularSituacao(r) };
+  }).filter(r => r._colaborador); // ignora órfãos (colaborador excluído sem cascata, por segurança)
+}
+
+function asoFiltrados(){
+  let lista = asoRegistrosCalculados();
+  const busca = normalizarTexto(document.getElementById('aso-f-busca')?.value || '');
+  const fTipo = document.getElementById('aso-f-tipo')?.value;
+  const fConclusao = document.getElementById('aso-f-conclusao')?.value;
+  if(busca) lista = lista.filter(r => normalizarTexto(r._colaborador.nome).includes(busca) || normalizarTexto(r._colaborador.matricula).includes(busca));
+  if(fTipo) lista = lista.filter(r => r.tipoAso === fTipo);
+  if(fConclusao) lista = lista.filter(r => r.conclusao === fConclusao);
+  return lista.sort((a,b) => String(a.dataVencimento||'9999-99-99').localeCompare(String(b.dataVencimento||'9999-99-99')));
+}
+
+function limparFiltrosAso(){
+  document.getElementById('aso-f-busca').value = '';
+  document.getElementById('aso-f-tipo').value = '';
+  document.getElementById('aso-f-conclusao').value = '';
+  renderAso();
+}
+
+// Atalho de navegação usado pelo card de KPI "Inaptos" da aba ASO.
+function irParaAsoFiltrado(conclusao){
+  const sel = document.getElementById('aso-f-conclusao');
+  if(sel) sel.value = conclusao || '';
+  renderAso();
+}
+
+function renderAsoKPIs(){
+  const todos = asoRegistrosCalculados();
+  const vencidos = todos.filter(r => r._situacao.vencido);
+  const em30 = todos.filter(r => !r._situacao.vencido && r._situacao.diasRestantes !== null && r._situacao.diasRestantes <= 30);
+  const inaptos = todos.filter(r => r.conclusao === 'inapto');
+  const aptos = todos.filter(r => r.conclusao === 'apto');
+  const kpis = [
+    { label:'Total de ASOs', value: todos.length, color:'var(--secondary)', onClick:"irParaAsoFiltrado('')" },
+    { label:'Vencidos', value: vencidos.length, color:'var(--cinza)', onClick:"irParaAsoFiltrado('')" },
+    { label:'Vencendo em 30 dias', value: em30.length, color:'var(--laranja)', onClick:"irParaAsoFiltrado('')" },
+    { label:'Inaptos', value: inaptos.length, color:'var(--vermelho)', onClick:"irParaAsoFiltrado('inapto')" },
+    { label:'Aptos', value: aptos.length, color:'var(--verde)', onClick:"irParaAsoFiltrado('apto')" },
+  ];
+  document.getElementById('aso-kpi-grid').innerHTML = kpis.map(k => `
+    <button type="button" class="kpi-card" onclick="${k.onClick}">
+      <span class="kpi-value tabular" style="color:${k.color}">${k.value}</span>
+      <span class="kpi-label">${k.label}</span>
+      <span class="kpi-card-hint">Ver detalhes <i class="fa-solid fa-arrow-right"></i></span>
+    </button>`).join('');
+}
+
+function renderAsoGraficos(){
+  const todos = asoRegistrosCalculados();
+
+  const porTipo = {};
+  todos.forEach(r => {
+    const label = (ASO_TIPOS[r.tipoAso] || {}).label || r.tipoAso;
+    porTipo[label] = (porTipo[label] || 0) + 1;
+  });
+  renderDoughnutChart('chart-aso-tipo', porTipo);
+
+  const porMes = {};
+  todos.forEach(r => {
+    if(!r.dataVencimento) return;
+    const d = parseISOLocal(r.dataVencimento);
+    if(!d) return;
+    const k = chaveMes(d);
+    porMes[k] = (porMes[k] || 0) + 1;
+  });
+  renderBarChart('chart-aso-mes', porMes, false);
+}
+
+function dadosAsoParaExportacao(){
+  return asoFiltrados().map(r => ({
+    'Colaborador': r._colaborador.nome, 'Matrícula': r._colaborador.matricula, 'Empresa': r._colaborador.empresa,
+    'Tipo de ASO': (ASO_TIPOS[r.tipoAso]||{}).label || r.tipoAso,
+    'Data de Realização': formatarDataBR(r.dataRealizacao), 'Vencimento': r.dataVencimento ? formatarDataBR(r.dataVencimento) : '',
+    'Médico Examinador': r.medicoExaminador, 'CRM': r.crm,
+    'Conclusão': (ASO_CONCLUSOES[r.conclusao]||{}).label || 'Não informado',
+    'Situação': r._situacao.label, 'Riscos Avaliados': r.riscosAvaliados, 'Exames Complementares': r.examesComplementares, 'Observações': r.observacoes,
+  }));
+}
+
+function exportAsoExcel(){
+  const dados = dadosAsoParaExportacao();
+  if(!dados.length){ showToast('Não há ASOs para exportar.', 'aviso'); return; }
+  const ws = XLSX.utils.json_to_sheet(dados);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'ASO');
+  XLSX.writeFile(wb, `aso-${formatarDataISO(new Date())}.xlsx`);
+  showToast('Excel exportado.', 'sucesso');
+}
+
+function exportAsoPDF(){
+  const dados = asoFiltrados();
+  if(!dados.length){ showToast('Não há ASOs para exportar.', 'aviso'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'landscape', unit:'pt', format:'a4' });
+  doc.setFontSize(14); doc.setFont(undefined,'bold');
+  doc.text('ASO — Atestados de Saúde Ocupacional', 30, 30);
+  doc.setFontSize(9); doc.setFont(undefined,'normal');
+  doc.text(`Gerado em ${new Date().toLocaleString('pt-BR')} · ${dados.length} registro(s)`, 30, 46);
+
+  doc.autoTable({
+    startY: 58,
+    styles: { fontSize:7, cellPadding:3 },
+    headStyles: { fillColor:[30,79,214], textColor:255, fontStyle:'bold' },
+    head: [['Colaborador','Matrícula','Tipo','Realização','Vencimento','Médico/CRM','Conclusão','Situação']],
+    body: dados.map(r => [
+      r._colaborador.nome, r._colaborador.matricula,
+      (ASO_TIPOS[r.tipoAso]||{}).label || r.tipoAso, formatarDataBR(r.dataRealizacao), r.dataVencimento ? formatarDataBR(r.dataVencimento) : '—',
+      [r.medicoExaminador, r.crm].filter(Boolean).join(' / ') || '—',
+      (ASO_CONCLUSOES[r.conclusao]||{}).label || 'Não informado',
+      r._situacao.label,
+    ]),
+  });
+  doc.save(`aso-${formatarDataISO(new Date())}.pdf`);
+  showToast('PDF exportado.', 'sucesso');
+}
+
+function renderAso(){
+  renderAsoKPIs();
+  renderAsoGraficos();
+  const lista = asoFiltrados();
+  document.getElementById('aso-head-row').innerHTML = `
+    <th>Colaborador</th><th>Tipo</th><th>Médico/CRM</th><th>Realização</th><th>Vencimento</th><th>Conclusão</th><th>Situação</th><th class="no-print">Ações</th>`;
+  document.getElementById('aso-empty').classList.toggle('hidden', lista.length !== 0);
+  document.getElementById('aso-body').innerHTML = lista.map(r => {
+    const tipoInfo = ASO_TIPOS[r.tipoAso] || { label:r.tipoAso, icone:'fa-notes-medical' };
+    const conclusaoInfo = ASO_CONCLUSOES[r.conclusao];
+    return `<tr>
+      <td>
+        <p class="font-semibold">${escapeHtml(r._colaborador.nome)}</p>
+        <p class="text-xs" style="color:var(--ink-soft);">${escapeHtml(r._colaborador.matricula)} · ${escapeHtml(r._colaborador.empresa||'')}</p>
+      </td>
+      <td><span class="tag-pill"><i class="fa-solid ${tipoInfo.icone}"></i> ${escapeHtml(tipoInfo.label)}</span></td>
+      <td>${escapeHtml([r.medicoExaminador, r.crm].filter(Boolean).join(' / ') || '—')}</td>
+      <td>${formatarDataBR(r.dataRealizacao)}</td>
+      <td>${r.dataVencimento ? formatarDataBR(r.dataVencimento) : '—'}</td>
+      <td>${conclusaoInfo ? `<span class="badge badge-${conclusaoInfo.cor}"><span class="badge-dot" style="background:currentColor;"></span>${escapeHtml(conclusaoInfo.label)}</span>` : '<span class="text-xs" style="color:var(--ink-faint);">Não informado</span>'}</td>
+      <td><span class="badge badge-${r._situacao.cor}"><span class="badge-dot" style="background:currentColor;"></span>${escapeHtml(r._situacao.label)}</span></td>
+      <td class="no-print">
+        <button class="btn btn-ghost !p-1.5" title="Editar" onclick="openAsoModal('${r.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-ghost !p-1.5" style="color:var(--vermelho);" title="Excluir" onclick="pedirExclusaoAso('${r.id}')"><i class="fa-solid fa-trash"></i></button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// Datalist de colaboradores para o campo de busca do modal de ASO.
+let mapaLabelColaboradorAso = {};
+function popularColaboradoresAsoDatalist(){
+  mapaLabelColaboradorAso = {};
+  const dl = document.getElementById('dl-colaboradores-aso');
+  dl.innerHTML = state.records.map(c => {
+    const label = `${c.nome} — ${c.matricula}`;
+    mapaLabelColaboradorAso[label] = c.id;
+    return `<option value="${escapeHtml(label)}">`;
+  }).join('');
+}
+
+function onAsoColaboradorInput(){
+  const valor = document.getElementById('aso-colaborador-busca').value;
+  const id = mapaLabelColaboradorAso[valor] || '';
+  document.getElementById('aso-colaborador-id').value = id;
+  document.getElementById('aso-colaborador-erro').classList.toggle('hidden', !!id || !valor);
+}
+
+// Recalcula a data de vencimento (realização + validade em meses) sempre que
+// a data de realização ou a validade mudam, enquanto "Calcular automaticamente"
+// estiver marcado — mesmo padrão usado nos treinamentos.
+function recalcVencimentoAso(){
+  if(!document.getElementById('aso-auto-vencimento').checked) return;
+  const dataRealizacao = document.getElementById('aso-data-realizacao').value;
+  const meses = parseInt(document.getElementById('aso-validade-meses').value || '0', 10);
+  const d = parseISOLocal(dataRealizacao);
+  document.getElementById('aso-data-vencimento').value = d ? formatarDataISO(somarMeses(d, meses)) : '';
+}
+
+// Alterna entre vencimento calculado automaticamente (campo travado) e
+// informado manualmente (campo liberado para edição).
+function atualizarAutoVencimentoAso(auto){
+  document.getElementById('aso-auto-vencimento').checked = auto;
+  const campo = document.getElementById('aso-data-vencimento');
+  campo.readOnly = auto;
+  campo.style.background = auto ? 'var(--surface-2)' : '';
+  if(auto) recalcVencimentoAso();
+}
+
+function openAsoModal(id){
+  popularColaboradoresAsoDatalist();
+  const form = document.getElementById('form-aso');
+  form.reset();
+  pastasDocumentosTemp.aso = [];
+  document.getElementById('aso-colaborador-id').value = '';
+  document.getElementById('aso-colaborador-erro').classList.add('hidden');
+  document.getElementById('aso-btn-excluir').classList.toggle('hidden', !id);
+
+  if(id){
+    const r = state.asoRegistros.find(x => x.id === id);
+    if(!r) return;
+    const c = colaboradorPorId(r.colaboradorId);
+    document.getElementById('modal-aso-title').textContent = 'Editar ASO';
+    document.getElementById('aso-id').value = r.id;
+    if(c){
+      document.getElementById('aso-colaborador-busca').value = `${c.nome} — ${c.matricula}`;
+      document.getElementById('aso-colaborador-id').value = c.id;
+    }
+    document.getElementById('aso-tipo').value = r.tipoAso || 'admissional';
+    document.getElementById('aso-data-realizacao').value = r.dataRealizacao || '';
+    document.getElementById('aso-validade-meses').value = r.validadeMeses ?? 12;
+    document.getElementById('aso-data-vencimento').value = r.dataVencimento || '';
+    document.getElementById('aso-auto-vencimento').checked = !!r.autoVencimento;
+    document.getElementById('aso-data-vencimento').readOnly = !!r.autoVencimento;
+    document.getElementById('aso-data-vencimento').style.background = r.autoVencimento ? 'var(--surface-2)' : '';
+    document.getElementById('aso-situacao-manual').value = r.situacaoManual || '';
+    document.getElementById('aso-medico').value = r.medicoExaminador || '';
+    document.getElementById('aso-crm').value = r.crm || '';
+    document.getElementById('aso-conclusao').value = r.conclusao || '';
+    document.getElementById('aso-riscos').value = r.riscosAvaliados || '';
+    document.getElementById('aso-exames').value = r.examesComplementares || '';
+    document.getElementById('aso-observacoes').value = r.observacoes || '';
+    pastasDocumentosTemp.aso = r.documentos ? JSON.parse(JSON.stringify(r.documentos)) : [];
+  } else {
+    document.getElementById('modal-aso-title').textContent = 'Novo ASO';
+    document.getElementById('aso-id').value = '';
+    document.getElementById('aso-tipo').value = 'admissional';
+    document.getElementById('aso-validade-meses').value = 12;
+    document.getElementById('aso-auto-vencimento').checked = true;
+    document.getElementById('aso-data-vencimento').readOnly = true;
+    document.getElementById('aso-data-vencimento').style.background = 'var(--surface-2)';
+  }
+  renderPastaDocumentos('aso', 'aso-pasta-lista');
+  document.getElementById('modal-aso').classList.remove('hidden');
+}
+
+function closeAsoModal(){ document.getElementById('modal-aso').classList.add('hidden'); }
+
+function salvarAso(evt){
+  evt.preventDefault();
+  const colaboradorId = document.getElementById('aso-colaborador-id').value;
+  if(!colaboradorId){
+    document.getElementById('aso-colaborador-erro').classList.remove('hidden');
+    showToast('Selecione um colaborador válido da lista.', 'erro');
+    return;
+  }
+  const id = document.getElementById('aso-id').value || gerarId();
+  const registro = {
+    id, colaboradorId,
+    tipoAso: document.getElementById('aso-tipo').value,
+    dataRealizacao: document.getElementById('aso-data-realizacao').value,
+    validadeMeses: parseInt(document.getElementById('aso-validade-meses').value || '0', 10),
+    autoVencimento: document.getElementById('aso-auto-vencimento').checked,
+    dataVencimento: document.getElementById('aso-data-vencimento').value,
+    situacaoManual: document.getElementById('aso-situacao-manual').value,
+    medicoExaminador: document.getElementById('aso-medico').value.trim(),
+    crm: document.getElementById('aso-crm').value.trim(),
+    conclusao: document.getElementById('aso-conclusao').value,
+    riscosAvaliados: document.getElementById('aso-riscos').value.trim(),
+    examesComplementares: document.getElementById('aso-exames').value.trim(),
+    observacoes: document.getElementById('aso-observacoes').value.trim(),
+    documentos: pastasDocumentosTemp.aso,
+  };
+  const idx = state.asoRegistros.findIndex(x => x.id === id);
+  if(idx >= 0) state.asoRegistros[idx] = registro; else state.asoRegistros.push(registro);
+  if(salvarStorage()) showToast('ASO salvo.', 'sucesso');
+  closeAsoModal();
+  renderAll();
+}
+
+function pedirExclusaoAso(id){
+  id = id || document.getElementById('aso-id').value;
+  if(!id) return;
+  abrirConfirmacao(
+    'Excluir este ASO?',
+    'Esta ação não pode ser desfeita.',
+    () => {
+      state.asoRegistros = state.asoRegistros.filter(x => x.id !== id);
+      salvarStorage();
+      closeAsoModal();
+      renderAll();
+      showToast('ASO excluído.', 'sucesso');
+    }
   );
 }
 
