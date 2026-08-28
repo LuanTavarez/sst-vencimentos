@@ -610,7 +610,7 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
         </div>
 
         <div class="chart-card mb-4 no-print">
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
             <div><label class="field-label">Buscar colaborador</label><input id="aso-f-busca" class="field-input" placeholder="Nome ou matrícula..." oninput="renderAso()"></div>
             <div><label class="field-label">Tipo de ASO</label>
               <select id="aso-f-tipo" class="field-select" onchange="renderAso()">
@@ -620,6 +620,14 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
                 <option value="retorno">Retorno ao Trabalho</option>
                 <option value="mudanca-funcao">Mudança de Função</option>
                 <option value="demissional">Demissional</option>
+              </select>
+            </div>
+            <div><label class="field-label">Situação</label>
+              <select id="aso-f-status" class="field-select" onchange="renderAso()">
+                <option value="">Todas</option>
+                <option value="vencido">Vencidos</option>
+                <option value="vence30">Vencendo em 30 dias</option>
+                <option value="valido">Válidos (&gt;30 dias)</option>
               </select>
             </div>
             <div><label class="field-label">Conclusão</label>
@@ -2465,7 +2473,10 @@ function destruirChart(id){ if(charts[id]){ charts[id].destroy(); delete charts[
 
 let PALETA_GRAFICOS = ['#1E4FD6','#FFB100','#158A45','#C81E3A','#7C3AED','#0E9AA7','#C2540A','#565F73','#DB2777','#0D9488'];
 
-function renderBarChart(canvasId, mapaDados, horizontal){
+// onClickLabel (opcional): callback(label) chamado quando o usuário clica
+// numa barra/fatia — recebe o rótulo daquele ponto do gráfico. Sem esse
+// parâmetro o gráfico fica só ilustrativo, como sempre foi.
+function renderBarChart(canvasId, mapaDados, horizontal, onClickLabel){
   destruirChart(canvasId);
   const entradas = Object.entries(mapaDados).sort((a,b) => b[1]-a[1]).slice(0,12);
   const ctx = document.getElementById(canvasId);
@@ -2483,12 +2494,17 @@ function renderBarChart(canvasId, mapaDados, horizontal){
       scales:{
         x:{ grid:{ display:!horizontal }, ticks:{ font:{size:10}, precision:0 } },
         y:{ grid:{ display:horizontal }, ticks:{ font:{size:10} } }
-      }
+      },
+      onClick: onClickLabel ? (evt, elementos) => {
+        if(!elementos.length) return;
+        onClickLabel(entradas[elementos[0].index][0]);
+      } : undefined,
+      onHover: onClickLabel ? (evt, elementos) => { evt.native.target.style.cursor = elementos.length ? 'pointer' : 'default'; } : undefined,
     }
   });
 }
 
-function renderDoughnutChart(canvasId, mapaDados){
+function renderDoughnutChart(canvasId, mapaDados, onClickLabel){
   destruirChart(canvasId);
   const entradas = Object.entries(mapaDados).sort((a,b) => b[1]-a[1]);
   const ctx = document.getElementById(canvasId);
@@ -2496,7 +2512,14 @@ function renderDoughnutChart(canvasId, mapaDados){
   charts[canvasId] = new Chart(ctx, {
     type:'doughnut',
     data:{ labels: entradas.map(e=>e[0]), datasets:[{ data: entradas.map(e=>e[1]), backgroundColor: PALETA_GRAFICOS, borderWidth:2, borderColor:'#fff' }] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:9}, boxWidth:10 } } } }
+    options:{
+      responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:9}, boxWidth:10 } } },
+      onClick: onClickLabel ? (evt, elementos) => {
+        if(!elementos.length) return;
+        onClickLabel(entradas[elementos[0].index][0]);
+      } : undefined,
+      onHover: onClickLabel ? (evt, elementos) => { evt.native.target.style.cursor = elementos.length ? 'pointer' : 'default'; } : undefined,
+    }
   });
 }
 
@@ -4353,29 +4376,58 @@ function asoRegistrosCalculados(){
   }).filter(r => r._colaborador); // ignora órfãos (colaborador excluído sem cascata, por segurança)
 }
 
+// Mês de vencimento clicado na barra do gráfico "Vencimentos por mês" — não
+// tem um <select> próprio na tela (o gráfico agrupa por mês, algo que os
+// filtros normais não cobrem), então fica só nesta variável até o usuário
+// limpar os filtros ou clicar em outro KPI/fatia do gráfico.
+let asoFiltroMesClicado = '';
+
 function asoFiltrados(){
   let lista = asoRegistrosCalculados();
   const busca = normalizarTexto(document.getElementById('aso-f-busca')?.value || '');
   const fTipo = document.getElementById('aso-f-tipo')?.value;
+  const fStatus = document.getElementById('aso-f-status')?.value;
   const fConclusao = document.getElementById('aso-f-conclusao')?.value;
   if(busca) lista = lista.filter(r => normalizarTexto(r._colaborador.nome).includes(busca) || normalizarTexto(r._colaborador.matricula).includes(busca));
   if(fTipo) lista = lista.filter(r => r.tipoAso === fTipo);
+  if(fStatus === 'vencido') lista = lista.filter(r => r._situacao.vencido);
+  if(fStatus === 'vence30') lista = lista.filter(r => !r._situacao.vencido && r._situacao.diasRestantes !== null && r._situacao.diasRestantes <= 30);
+  if(fStatus === 'valido') lista = lista.filter(r => !r._situacao.vencido && (r._situacao.diasRestantes === null || r._situacao.diasRestantes > 30));
   if(fConclusao) lista = lista.filter(r => r.conclusao === fConclusao);
+  if(asoFiltroMesClicado) lista = lista.filter(r => r.dataVencimento && chaveMes(parseISOLocal(r.dataVencimento)) === asoFiltroMesClicado);
   return lista.sort((a,b) => String(a.dataVencimento||'9999-99-99').localeCompare(String(b.dataVencimento||'9999-99-99')));
 }
 
 function limparFiltrosAso(){
   document.getElementById('aso-f-busca').value = '';
   document.getElementById('aso-f-tipo').value = '';
+  document.getElementById('aso-f-status').value = '';
   document.getElementById('aso-f-conclusao').value = '';
+  asoFiltroMesClicado = '';
   renderAso();
 }
 
-// Atalho de navegação usado pelo card de KPI "Inaptos" da aba ASO.
-function irParaAsoFiltrado(conclusao){
-  const sel = document.getElementById('aso-f-conclusao');
-  if(sel) sel.value = conclusao || '';
+// Atalho de navegação usado pelos cards de KPI e pela fatia/barra clicada
+// nos gráficos da aba ASO: zera os filtros atuais e aplica só o que foi
+// clicado, levando direto para a tabela já filtrada.
+function irParaAsoFiltrado(status, conclusao, tipo){
+  document.getElementById('aso-f-busca').value = '';
+  document.getElementById('aso-f-tipo').value = tipo || '';
+  document.getElementById('aso-f-status').value = status || '';
+  document.getElementById('aso-f-conclusao').value = conclusao || '';
+  asoFiltroMesClicado = '';
   renderAso();
+  document.getElementById('aso-body')?.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function irParaAsoFiltradoPorMes(mes){
+  document.getElementById('aso-f-busca').value = '';
+  document.getElementById('aso-f-tipo').value = '';
+  document.getElementById('aso-f-status').value = '';
+  document.getElementById('aso-f-conclusao').value = '';
+  asoFiltroMesClicado = mes;
+  renderAso();
+  document.getElementById('aso-body')?.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 function renderAsoKPIs(){
@@ -4385,11 +4437,11 @@ function renderAsoKPIs(){
   const inaptos = todos.filter(r => r.conclusao === 'inapto');
   const aptos = todos.filter(r => r.conclusao === 'apto');
   const kpis = [
-    { label:'Total de ASOs', value: todos.length, color:'var(--secondary)', onClick:"irParaAsoFiltrado('')" },
-    { label:'Vencidos', value: vencidos.length, color:'var(--cinza)', onClick:"irParaAsoFiltrado('')" },
-    { label:'Vencendo em 30 dias', value: em30.length, color:'var(--laranja)', onClick:"irParaAsoFiltrado('')" },
-    { label:'Inaptos', value: inaptos.length, color:'var(--vermelho)', onClick:"irParaAsoFiltrado('inapto')" },
-    { label:'Aptos', value: aptos.length, color:'var(--verde)', onClick:"irParaAsoFiltrado('apto')" },
+    { label:'Total de ASOs', value: todos.length, color:'var(--secondary)', onClick:"irParaAsoFiltrado()" },
+    { label:'Vencidos', value: vencidos.length, color:'var(--cinza)', onClick:"irParaAsoFiltrado('vencido')" },
+    { label:'Vencendo em 30 dias', value: em30.length, color:'var(--laranja)', onClick:"irParaAsoFiltrado('vence30')" },
+    { label:'Inaptos', value: inaptos.length, color:'var(--vermelho)', onClick:"irParaAsoFiltrado('', 'inapto')" },
+    { label:'Aptos', value: aptos.length, color:'var(--verde)', onClick:"irParaAsoFiltrado('', 'apto')" },
   ];
   document.getElementById('aso-kpi-grid').innerHTML = kpis.map(k => `
     <button type="button" class="kpi-card" onclick="${k.onClick}">
@@ -4403,11 +4455,15 @@ function renderAsoGraficos(){
   const todos = asoRegistrosCalculados();
 
   const porTipo = {};
+  const chavePorLabelTipo = {};
   todos.forEach(r => {
     const label = (ASO_TIPOS[r.tipoAso] || {}).label || r.tipoAso;
     porTipo[label] = (porTipo[label] || 0) + 1;
+    chavePorLabelTipo[label] = r.tipoAso;
   });
-  renderDoughnutChart('chart-aso-tipo', porTipo);
+  renderDoughnutChart('chart-aso-tipo', porTipo, (labelClicado) => {
+    irParaAsoFiltrado('', '', chavePorLabelTipo[labelClicado] || '');
+  });
 
   const porMes = {};
   todos.forEach(r => {
@@ -4417,7 +4473,7 @@ function renderAsoGraficos(){
     const k = chaveMes(d);
     porMes[k] = (porMes[k] || 0) + 1;
   });
-  renderBarChart('chart-aso-mes', porMes, false);
+  renderBarChart('chart-aso-mes', porMes, false, irParaAsoFiltradoPorMes);
 }
 
 function dadosAsoParaExportacao(){
