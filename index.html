@@ -4657,13 +4657,21 @@ function resolverConclusaoAso(valor){
   return '';
 }
 
-// Localiza um colaborador já cadastrado por matrícula (prioridade) ou nome
-// (comparação normalizada, sem acento/maiúsculas) — nunca cria colaborador novo.
-function resolverColaboradorImport(nomeOuBusca, matricula){
+// Localiza um colaborador já cadastrado por matrícula, CPF ou nome (nessa
+// prioridade, comparação normalizada, sem acento/maiúsculas) — nunca cria
+// colaborador novo.
+function resolverColaboradorImport(nomeOuBusca, matricula, cpf){
   if(matricula){
     const normMat = normalizarTexto(matricula);
     const porMat = state.records.find(c => normalizarTexto(c.matricula) === normMat);
     if(porMat) return porMat;
+  }
+  if(cpf){
+    const normCpf = String(cpf).replace(/\D/g, '');
+    if(normCpf){
+      const porCpf = state.records.find(c => c.cpf && String(c.cpf).replace(/\D/g,'') === normCpf);
+      if(porCpf) return porCpf;
+    }
   }
   if(nomeOuBusca){
     const normNome = normalizarTexto(nomeOuBusca);
@@ -4676,9 +4684,10 @@ function resolverColaboradorImport(nomeOuBusca, matricula){
 const ASO_IMPORT_SINONIMOS = {
   colaborador: ['colaborador','nome','funcionario','empregado','funcionário'],
   matricula: ['matricula','matrícula','registro'],
+  cpf: ['cpf'],
   tipo: ['tipo de aso','tipoaso','tipo'],
-  dataRealizacao: ['data de realizacao','data realizacao','data do exame','data exame','realizacao','data'],
-  validadeMeses: ['validade meses','validade (meses)','validade'],
+  dataRealizacao: ['data de realizacao','data realizacao','data do exame','data exame','data de emissao do aso','data de emissao','data emissao','emissao','realizacao','data'],
+  validadeMeses: ['validade meses','validade (meses)','validade dias','validade (dias)','validade'],
   dataVencimento: ['data de vencimento','vencimento'],
   medico: ['medico examinador','medico do trabalho','medico'],
   crm: ['crm'],
@@ -4719,22 +4728,36 @@ function onAsoImportFileSelect(evt){
         evt.target.value = '';
         return;
       }
+      // Se a coluna de validade tiver "dia" no cabeçalho (ex.: "Validade (dias)"),
+      // o valor da célula está em DIAS, não em meses — precisa converter.
+      const cabecalhoValidadeEmDias = mapa.validadeMeses !== undefined && normalizarTexto(cabecalhos[mapa.validadeMeses]).includes('dia');
       asoImportLinhas = corpo.map((linha, idx) => {
         const pega = (campo) => mapa[campo] !== undefined ? String(linha[mapa[campo]] ?? '').trim() : '';
         const nomeBusca = pega('colaborador');
         const matriculaBusca = pega('matricula');
-        const colaborador = resolverColaboradorImport(nomeBusca, matriculaBusca);
+        const cpfBusca = pega('cpf');
+        const colaborador = resolverColaboradorImport(nomeBusca, matriculaBusca, cpfBusca);
         const dataRealizacaoRaw = pega('dataRealizacao');
         const dataRealizacaoParsed = dataRealizacaoRaw ? parseDataFlexivel(dataRealizacaoRaw) : null;
         const dataRealizacao = dataRealizacaoParsed ? formatarDataISO(dataRealizacaoParsed) : '';
-        const validadeMeses = parseInt(pega('validadeMeses') || '12', 10) || 12;
         const dataVencimentoRaw = pega('dataVencimento');
         const dataVencimentoParsed = dataVencimentoRaw ? parseDataFlexivel(dataVencimentoRaw) : null;
         let dataVencimento = dataVencimentoParsed ? formatarDataISO(dataVencimentoParsed) : '';
+        let validadeMeses;
         let autoVencimento = false;
-        if(!dataVencimento && dataRealizacao){
-          const d = parseISOLocal(dataRealizacao);
-          if(d){ dataVencimento = formatarDataISO(somarMeses(d, validadeMeses)); autoVencimento = true; }
+        if(dataVencimento && dataRealizacao){
+          // As duas datas já vêm prontas na planilha — deriva a validade em
+          // meses a partir da diferença real entre elas (evita ambiguidade
+          // de a coluna "Validade" estar em dias ou em meses).
+          const dias = Math.round((parseISOLocal(dataVencimento) - parseISOLocal(dataRealizacao)) / 86400000);
+          validadeMeses = Math.max(1, Math.round(dias / 30));
+        } else {
+          const validadeBruta = parseInt(pega('validadeMeses') || '12', 10) || 12;
+          validadeMeses = cabecalhoValidadeEmDias ? Math.max(1, Math.round(validadeBruta / 30)) : validadeBruta;
+          if(!dataVencimento && dataRealizacao){
+            const d = parseISOLocal(dataRealizacao);
+            if(d){ dataVencimento = formatarDataISO(somarMeses(d, validadeMeses)); autoVencimento = true; }
+          }
         }
         const erro = !colaborador ? 'Colaborador não encontrado'
           : !dataRealizacao ? 'Data de realização inválida ou ausente'
@@ -4742,7 +4765,7 @@ function onAsoImportFileSelect(evt){
         return {
           linha: idx + 2, // +2 = compensa a linha de cabeçalho + índice baseado em 1
           colaboradorId: colaborador ? colaborador.id : '',
-          colaboradorLabel: colaborador ? `${colaborador.nome} — ${colaborador.matricula}` : (nomeBusca || matriculaBusca || '—'),
+          colaboradorLabel: colaborador ? `${colaborador.nome} — ${colaborador.matricula}` : (nomeBusca || matriculaBusca || cpfBusca || '—'),
           tipoAso: resolverTipoAso(pega('tipo')),
           dataRealizacao, validadeMeses, dataVencimento, autoVencimento,
           medicoExaminador: pega('medico'), crm: pega('crm'),
