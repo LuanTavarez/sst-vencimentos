@@ -1327,26 +1327,39 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
   <div class="modal-box" style="max-width:920px;">
     <div class="flex items-center justify-between px-6 py-4" style="border-bottom:1px solid var(--border);">
       <div>
-        <h2 class="text-base font-extrabold">Revisar importação de ASOs</h2>
-        <p class="text-xs" style="color:var(--ink-soft);">Confira o que foi reconhecido na planilha antes de confirmar. Linhas com erro não serão importadas.</p>
+        <h2 class="text-base font-extrabold">Importar planilha de ASOs</h2>
+        <p class="text-xs" style="color:var(--ink-soft);">Aceita qualquer layout de colunas — mapeie do jeito que a sua planilha vier.</p>
       </div>
       <button class="btn-ghost btn" onclick="closeAsoImportModal()">✕</button>
     </div>
     <div class="px-6 py-5">
-      <p id="aso-import-resumo" class="text-sm font-semibold mb-3"></p>
-      <div class="table-wrap" style="max-height:50vh; overflow-y:auto;">
-        <table class="data-table">
-          <thead><tr><th>Linha</th><th>Colaborador</th><th>Tipo</th><th>Realização</th><th>Vencimento</th><th>Conclusão</th><th>Status</th></tr></thead>
-          <tbody id="aso-import-body"></tbody>
-        </table>
-      </div>
-      <div class="flex items-center justify-between gap-2 mt-6 pt-4" style="border-top:1px solid var(--border);">
-        <p class="text-xs" style="color:var(--ink-soft);">Colunas reconhecidas: Colaborador/Matrícula, Tipo de ASO, Data de Realização, Validade (meses), Data de Vencimento, Médico, CRM, Conclusão, Riscos Avaliados, Exames Complementares, Observações.</p>
-        <div class="flex justify-end gap-2 ml-auto flex-shrink-0">
-          <button type="button" class="btn btn-outline" onclick="closeAsoImportModal()">Cancelar</button>
-          <button type="button" id="aso-import-confirmar-btn" class="btn btn-primary" onclick="confirmarImportacaoAso()">Confirmar importação</button>
+      <!-- Passo 1: mapeamento de colunas -->
+      <div id="aso-import-step-mapeamento">
+        <div class="flex items-center gap-2 mb-3 rounded-lg px-3 py-2" style="background:var(--primary-soft);">
+          <svg class="w-4 h-4 flex-shrink-0" style="color:var(--primary);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 3 6v6c0 5 3.8 8.7 9 10 5.2-1.3 9-5 9-10V6l-9-4Z"/></svg>
+          <p class="text-xs font-medium" style="color:var(--primary-dark);">O sistema tentou reconhecer as colunas da sua planilha automaticamente. Revise e ajuste cada uma antes de continuar.</p>
         </div>
+        <div id="aso-mapping-grid" class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 max-h-[45vh] overflow-y-auto pr-1"></div>
+        <p class="text-xs mt-3" style="color:var(--ink-soft);"><span id="aso-import-row-count">0</span> linha(s) detectada(s) no arquivo.</p>
       </div>
+
+      <!-- Passo 2: revisão e confirmação -->
+      <div id="aso-import-step-revisao" class="hidden">
+        <p id="aso-import-resumo" class="text-sm font-semibold mb-3"></p>
+        <div class="table-wrap" style="max-height:45vh; overflow-y:auto;">
+          <table class="data-table">
+            <thead><tr><th>Linha</th><th>Colaborador</th><th>Tipo</th><th>Realização</th><th>Vencimento</th><th>Conclusão</th><th>Status</th></tr></thead>
+            <tbody id="aso-import-body"></tbody>
+          </table>
+        </div>
+        <p class="text-xs mt-3" style="color:var(--ink-soft);">Linhas com erro não serão importadas. Clique em "Voltar" para ajustar o mapeamento das colunas se algo não bateu.</p>
+      </div>
+    </div>
+    <div class="flex justify-end gap-2 px-6 py-4" style="border-top:1px solid var(--border);">
+      <button type="button" class="btn btn-outline" onclick="closeAsoImportModal()">Cancelar</button>
+      <button type="button" id="aso-import-voltar-btn" class="btn btn-outline hidden" onclick="voltarMapeamentoAsoImport()">Voltar</button>
+      <button type="button" id="aso-import-continuar-btn" class="btn btn-primary" onclick="continuarParaRevisaoAsoImport()">Continuar</button>
+      <button type="button" id="aso-import-confirmar-btn" class="btn btn-primary hidden" onclick="confirmarImportacaoAso()">Confirmar importação</button>
     </div>
   </div>
 </div>
@@ -4628,6 +4641,9 @@ function pedirExclusaoAso(id){
    revisão antes de gravar — nenhuma linha com erro é importada.
    -------------------------------------------------------------------- */
 let asoImportLinhas = []; // linhas já processadas, aguardando confirmação na tela de revisão
+let asoImportCabecalhos = []; // cabeçalhos brutos lidos do arquivo
+let asoImportCorpo = []; // linhas de dados brutas lidas do arquivo (sem cabeçalho)
+let asoImportMapeamento = {}; // índice da coluna -> campo do sistema, ajustável pelo usuário
 
 const ASO_TIPO_SINONIMOS = {
   admissional: ['admissional'],
@@ -4696,16 +4712,36 @@ const ASO_IMPORT_SINONIMOS = {
   exames: ['exames complementares','exames'],
   observacoes: ['observacoes','obs'],
 };
-function mapearCabecalhosAsoImport(cabecalhos){
-  const mapa = {};
-  cabecalhos.forEach((h, idx) => {
-    const norm = normalizarTexto(h);
-    for(const [campo, sinonimos] of Object.entries(ASO_IMPORT_SINONIMOS)){
-      if(mapa[campo] !== undefined) continue;
-      if(sinonimos.some(s => normalizarTexto(s) === norm)) mapa[campo] = idx;
-    }
-  });
-  return mapa;
+const ASO_IMPORT_CAMPOS_SISTEMA = [
+  { key:'', label:'Ignorar esta coluna' },
+  { key:'colaborador', label:'Nome do colaborador' },
+  { key:'matricula', label:'Matrícula' },
+  { key:'cpf', label:'CPF' },
+  { key:'tipo', label:'Tipo de ASO' },
+  { key:'dataRealizacao', label:'Data de realização / emissão' },
+  { key:'validadeMeses', label:'Validade (informe a unidade abaixo)' },
+  { key:'dataVencimento', label:'Data de vencimento' },
+  { key:'medico', label:'Médico examinador' },
+  { key:'crm', label:'CRM' },
+  { key:'conclusao', label:'Conclusão (Apto/Inapto)' },
+  { key:'riscos', label:'Riscos avaliados' },
+  { key:'exames', label:'Exames complementares' },
+  { key:'observacoes', label:'Observações' },
+];
+
+// Sugere o melhor campo do sistema para um cabeçalho de coluna, comparando a
+// versão normalizada (sem acento/maiúsculas) contra o dicionário de sinônimos
+// de ASO — é só um ponto de partida: o usuário confere e ajusta na tela.
+function sugerirCampoAso(cabecalho){
+  const norm = normalizarTexto(cabecalho);
+  if(!norm) return '';
+  for(const [campo, sinonimos] of Object.entries(ASO_IMPORT_SINONIMOS)){
+    if(sinonimos.some(s => normalizarTexto(s) === norm)) return campo;
+  }
+  for(const [campo, sinonimos] of Object.entries(ASO_IMPORT_SINONIMOS)){
+    if(sinonimos.some(s => norm.includes(normalizarTexto(s)))) return campo;
+  }
+  return '';
 }
 
 function onAsoImportFileSelect(evt){
@@ -4722,59 +4758,9 @@ function onAsoImportFileSelect(evt){
       const cabecalhos = linhas[0].map(h => String(h||'').trim());
       const corpo = linhas.slice(1).filter(l => l.some(c => c !== ''));
       if(!corpo.length){ showToast('Nenhuma linha de dados encontrada na planilha.', 'aviso'); evt.target.value = ''; return; }
-      const mapa = mapearCabecalhosAsoImport(cabecalhos);
-      if(mapa.colaborador === undefined && mapa.matricula === undefined){
-        showToast('Não encontrei uma coluna de Colaborador ou Matrícula na planilha. Verifique o cabeçalho.', 'erro');
-        evt.target.value = '';
-        return;
-      }
-      // Se a coluna de validade tiver "dia" no cabeçalho (ex.: "Validade (dias)"),
-      // o valor da célula está em DIAS, não em meses — precisa converter.
-      const cabecalhoValidadeEmDias = mapa.validadeMeses !== undefined && normalizarTexto(cabecalhos[mapa.validadeMeses]).includes('dia');
-      asoImportLinhas = corpo.map((linha, idx) => {
-        const pega = (campo) => mapa[campo] !== undefined ? String(linha[mapa[campo]] ?? '').trim() : '';
-        const nomeBusca = pega('colaborador');
-        const matriculaBusca = pega('matricula');
-        const cpfBusca = pega('cpf');
-        const colaborador = resolverColaboradorImport(nomeBusca, matriculaBusca, cpfBusca);
-        const dataRealizacaoRaw = pega('dataRealizacao');
-        const dataRealizacaoParsed = dataRealizacaoRaw ? parseDataFlexivel(dataRealizacaoRaw) : null;
-        const dataRealizacao = dataRealizacaoParsed ? formatarDataISO(dataRealizacaoParsed) : '';
-        const dataVencimentoRaw = pega('dataVencimento');
-        const dataVencimentoParsed = dataVencimentoRaw ? parseDataFlexivel(dataVencimentoRaw) : null;
-        let dataVencimento = dataVencimentoParsed ? formatarDataISO(dataVencimentoParsed) : '';
-        let validadeMeses;
-        let autoVencimento = false;
-        if(dataVencimento && dataRealizacao){
-          // As duas datas já vêm prontas na planilha — deriva a validade em
-          // meses a partir da diferença real entre elas (evita ambiguidade
-          // de a coluna "Validade" estar em dias ou em meses).
-          const dias = Math.round((parseISOLocal(dataVencimento) - parseISOLocal(dataRealizacao)) / 86400000);
-          validadeMeses = Math.max(1, Math.round(dias / 30));
-        } else {
-          const validadeBruta = parseInt(pega('validadeMeses') || '12', 10) || 12;
-          validadeMeses = cabecalhoValidadeEmDias ? Math.max(1, Math.round(validadeBruta / 30)) : validadeBruta;
-          if(!dataVencimento && dataRealizacao){
-            const d = parseISOLocal(dataRealizacao);
-            if(d){ dataVencimento = formatarDataISO(somarMeses(d, validadeMeses)); autoVencimento = true; }
-          }
-        }
-        const erro = !colaborador ? 'Colaborador não encontrado'
-          : !dataRealizacao ? 'Data de realização inválida ou ausente'
-          : '';
-        return {
-          linha: idx + 2, // +2 = compensa a linha de cabeçalho + índice baseado em 1
-          colaboradorId: colaborador ? colaborador.id : '',
-          colaboradorLabel: colaborador ? `${colaborador.nome} — ${colaborador.matricula}` : (nomeBusca || matriculaBusca || cpfBusca || '—'),
-          tipoAso: resolverTipoAso(pega('tipo')),
-          dataRealizacao, validadeMeses, dataVencimento, autoVencimento,
-          medicoExaminador: pega('medico'), crm: pega('crm'),
-          conclusao: resolverConclusaoAso(pega('conclusao')),
-          riscosAvaliados: pega('riscos'), examesComplementares: pega('exames'), observacoes: pega('observacoes'),
-          erro,
-        };
-      });
-      renderAsoImportPreview();
+      asoImportCabecalhos = cabecalhos;
+      asoImportCorpo = corpo;
+      montarMapeamentoAsoImport();
       document.getElementById('modal-aso-import').classList.remove('hidden');
     }catch(err){
       console.error(err);
@@ -4783,6 +4769,113 @@ function onAsoImportFileSelect(evt){
     evt.target.value = '';
   };
   reader.readAsArrayBuffer(file);
+}
+
+// Passo 1: mostra uma coluna da planilha de cada vez com um seletor do campo
+// do sistema correspondente — pré-preenchido com a melhor sugestão, mas
+// totalmente editável, pra se adaptar a qualquer layout de planilha.
+function montarMapeamentoAsoImport(){
+  document.getElementById('aso-import-step-mapeamento').classList.remove('hidden');
+  document.getElementById('aso-import-step-revisao').classList.add('hidden');
+  document.getElementById('aso-import-continuar-btn').classList.remove('hidden');
+  document.getElementById('aso-import-voltar-btn').classList.add('hidden');
+  document.getElementById('aso-import-confirmar-btn').classList.add('hidden');
+  document.getElementById('aso-import-row-count').textContent = asoImportCorpo.length;
+
+  asoImportMapeamento = {};
+  let sugestaoUnidadeDias = false;
+  const linhasMapeamento = asoImportCabecalhos.map((cab, i) => {
+    const sugestao = sugerirCampoAso(cab);
+    asoImportMapeamento[i] = sugestao;
+    if(sugestao === 'validadeMeses' && normalizarTexto(cab).includes('dia')) sugestaoUnidadeDias = true;
+    return `<div>
+      <label class="field-label">Coluna da planilha: "${escapeHtml(cab)}"</label>
+      <select class="field-select" onchange="asoImportMapeamento[${i}] = this.value">
+        ${ASO_IMPORT_CAMPOS_SISTEMA.map(c => `<option value="${c.key}" ${c.key===sugestao?'selected':''}>${escapeHtml(c.label)}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('');
+  document.getElementById('aso-mapping-grid').innerHTML = linhasMapeamento + `
+    <div>
+      <label class="field-label">Unidade da coluna de validade (se alguma coluna foi mapeada para "Validade")</label>
+      <select id="aso-import-unidade-validade" class="field-select">
+        <option value="meses" ${!sugestaoUnidadeDias?'selected':''}>Meses</option>
+        <option value="dias" ${sugestaoUnidadeDias?'selected':''}>Dias</option>
+      </select>
+    </div>`;
+}
+
+function voltarMapeamentoAsoImport(){
+  document.getElementById('aso-import-step-mapeamento').classList.remove('hidden');
+  document.getElementById('aso-import-step-revisao').classList.add('hidden');
+  document.getElementById('aso-import-continuar-btn').classList.remove('hidden');
+  document.getElementById('aso-import-voltar-btn').classList.add('hidden');
+  document.getElementById('aso-import-confirmar-btn').classList.add('hidden');
+}
+
+// Passo 2: aplica o mapeamento escolhido pelo usuário (não mais um mapeamento
+// fixo) sobre as linhas brutas da planilha e monta a tela de revisão.
+function continuarParaRevisaoAsoImport(){
+  const mapaInverso = {}; // campo do sistema -> índice da coluna escolhida
+  Object.entries(asoImportMapeamento).forEach(([idx, campo]) => { if(campo) mapaInverso[campo] = parseInt(idx, 10); });
+
+  if(mapaInverso.colaborador === undefined && mapaInverso.matricula === undefined && mapaInverso.cpf === undefined){
+    showToast('Mapeie pelo menos uma coluna de Colaborador, Matrícula ou CPF para localizar quem é cada linha.', 'erro');
+    return;
+  }
+
+  const unidadeValidadeEmDias = document.getElementById('aso-import-unidade-validade').value === 'dias';
+
+  asoImportLinhas = asoImportCorpo.map((linha, idx) => {
+    const pega = (campo) => mapaInverso[campo] !== undefined ? String(linha[mapaInverso[campo]] ?? '').trim() : '';
+    const nomeBusca = pega('colaborador');
+    const matriculaBusca = pega('matricula');
+    const cpfBusca = pega('cpf');
+    const colaborador = resolverColaboradorImport(nomeBusca, matriculaBusca, cpfBusca);
+    const dataRealizacaoRaw = pega('dataRealizacao');
+    const dataRealizacaoParsed = dataRealizacaoRaw ? parseDataFlexivel(dataRealizacaoRaw) : null;
+    const dataRealizacao = dataRealizacaoParsed ? formatarDataISO(dataRealizacaoParsed) : '';
+    const dataVencimentoRaw = pega('dataVencimento');
+    const dataVencimentoParsed = dataVencimentoRaw ? parseDataFlexivel(dataVencimentoRaw) : null;
+    let dataVencimento = dataVencimentoParsed ? formatarDataISO(dataVencimentoParsed) : '';
+    let validadeMeses;
+    let autoVencimento = false;
+    if(dataVencimento && dataRealizacao){
+      // As duas datas já vêm prontas na planilha — deriva a validade em
+      // meses a partir da diferença real entre elas (evita depender de a
+      // coluna "Validade" estar em dias ou em meses).
+      const dias = Math.round((parseISOLocal(dataVencimento) - parseISOLocal(dataRealizacao)) / 86400000);
+      validadeMeses = Math.max(1, Math.round(dias / 30));
+    } else {
+      const validadeBruta = parseInt(pega('validadeMeses') || '12', 10) || 12;
+      validadeMeses = unidadeValidadeEmDias ? Math.max(1, Math.round(validadeBruta / 30)) : validadeBruta;
+      if(!dataVencimento && dataRealizacao){
+        const d = parseISOLocal(dataRealizacao);
+        if(d){ dataVencimento = formatarDataISO(somarMeses(d, validadeMeses)); autoVencimento = true; }
+      }
+    }
+    const erro = !colaborador ? 'Colaborador não encontrado'
+      : !dataRealizacao ? 'Data de realização inválida ou ausente'
+      : '';
+    return {
+      linha: idx + 2, // +2 = compensa a linha de cabeçalho + índice baseado em 1
+      colaboradorId: colaborador ? colaborador.id : '',
+      colaboradorLabel: colaborador ? `${colaborador.nome} — ${colaborador.matricula}` : (nomeBusca || matriculaBusca || cpfBusca || '—'),
+      tipoAso: resolverTipoAso(pega('tipo')),
+      dataRealizacao, validadeMeses, dataVencimento, autoVencimento,
+      medicoExaminador: pega('medico'), crm: pega('crm'),
+      conclusao: resolverConclusaoAso(pega('conclusao')),
+      riscosAvaliados: pega('riscos'), examesComplementares: pega('exames'), observacoes: pega('observacoes'),
+      erro,
+    };
+  });
+
+  renderAsoImportPreview();
+  document.getElementById('aso-import-step-mapeamento').classList.add('hidden');
+  document.getElementById('aso-import-step-revisao').classList.remove('hidden');
+  document.getElementById('aso-import-continuar-btn').classList.add('hidden');
+  document.getElementById('aso-import-voltar-btn').classList.remove('hidden');
+  document.getElementById('aso-import-confirmar-btn').classList.remove('hidden');
 }
 
 function renderAsoImportPreview(){
@@ -4808,6 +4901,9 @@ function closeAsoImportModal(){
   document.getElementById('modal-aso-import').classList.add('hidden');
   document.getElementById('aso-import-file').value = '';
   asoImportLinhas = [];
+  asoImportCabecalhos = [];
+  asoImportCorpo = [];
+  asoImportMapeamento = {};
 }
 
 function confirmarImportacaoAso(){
