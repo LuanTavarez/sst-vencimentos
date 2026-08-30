@@ -4876,8 +4876,13 @@ function continuarParaRevisaoAsoImport(){
   const mapaInverso = {}; // campo do sistema -> índice da coluna escolhida
   Object.entries(asoImportMapeamento).forEach(([idx, campo]) => { if(campo) mapaInverso[campo] = parseInt(idx, 10); });
 
-  if(mapaInverso.colaborador === undefined && mapaInverso.matricula === undefined && mapaInverso.cpf === undefined){
-    showToast('Mapeie pelo menos uma coluna de Colaborador, Matrícula ou CPF para localizar quem é cada linha.', 'erro');
+  // CPF nunca é exigido aqui: como o cadastro de colaboradores raramente tem
+  // CPF preenchido (campo opcional), planilhas que só trouxessem CPF quase
+  // sempre falhariam ao tentar localizar o colaborador. CPF continua sendo
+  // usado como critério extra em resolverColaboradorImport quando disponível,
+  // mas nome ou matrícula são a única exigência real pra prosseguir.
+  if(mapaInverso.colaborador === undefined && mapaInverso.matricula === undefined){
+    showToast('Mapeie pelo menos uma coluna de Nome do colaborador ou Matrícula para localizar quem é cada linha.', 'erro');
     return;
   }
 
