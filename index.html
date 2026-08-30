@@ -693,6 +693,7 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
                 <option value="">Todos</option>
                 <option value="aberto">Em aberto</option>
                 <option value="encerrado">Encerrado</option>
+                <option value="reavaliacao-proxima">Reavaliação próxima (≤30d)</option>
               </select>
             </div>
             <div class="flex items-end"><button class="btn btn-ghost w-full" onclick="limparFiltrosSaude()">Limpar filtros</button></div>
@@ -5031,6 +5032,11 @@ function saudeRegistrosCalculados(){
   }).filter(r => r._colaborador); // ignora órfãos (colaborador excluído sem cascata, por segurança)
 }
 
+// Mês de início clicado na barra do gráfico "por mês" — não tem <select>
+// próprio na tela, então fica só nesta variável até limpar os filtros ou
+// clicar em outro KPI/fatia do gráfico.
+let saudeFiltroMesClicado = '';
+
 function saudeFiltrados(){
   let lista = saudeRegistrosCalculados();
   const busca = normalizarTexto(document.getElementById('sd-f-busca')?.value || '');
@@ -5040,6 +5046,8 @@ function saudeFiltrados(){
   if(fTipo) lista = lista.filter(r => r.tipo === fTipo);
   if(fStatus === 'aberto') lista = lista.filter(r => r._situacao.aberto);
   if(fStatus === 'encerrado') lista = lista.filter(r => !r._situacao.aberto);
+  if(fStatus === 'reavaliacao-proxima') lista = lista.filter(r => ['vermelho','laranja'].includes(r._situacao.cor));
+  if(saudeFiltroMesClicado) lista = lista.filter(r => r.dataInicio && chaveMes(parseISOLocal(r.dataInicio)) === saudeFiltroMesClicado);
   return lista.sort((a,b) => String(b.dataInicio||'').localeCompare(String(a.dataInicio||'')));
 }
 
@@ -5047,7 +5055,17 @@ function limparFiltrosSaude(){
   document.getElementById('sd-f-busca').value = '';
   document.getElementById('sd-f-tipo').value = '';
   document.getElementById('sd-f-status').value = '';
+  saudeFiltroMesClicado = '';
   renderSaude();
+}
+
+function irParaSaudeFiltradoPorMes(mes){
+  document.getElementById('sd-f-busca').value = '';
+  document.getElementById('sd-f-tipo').value = '';
+  document.getElementById('sd-f-status').value = '';
+  saudeFiltroMesClicado = mes;
+  renderSaude();
+  document.getElementById('saude-body')?.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 // Atalho de navegação usado pelos cards de KPI da aba Saúde/INSS: aplica os
@@ -5057,7 +5075,9 @@ function irParaSaudeFiltrado(tipo, status){
   const selStatus = document.getElementById('sd-f-status');
   if(selTipo) selTipo.value = tipo || '';
   if(selStatus) selStatus.value = status || '';
+  saudeFiltroMesClicado = '';
   renderSaude();
+  document.getElementById('saude-body')?.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 function renderSaudeKPIs(){
@@ -5067,7 +5087,7 @@ function renderSaudeKPIs(){
     { label:'CAT em aberto', value: todos.filter(r => r.tipo==='cat' && r._situacao.aberto).length, color:'var(--vermelho)', onClick:"irParaSaudeFiltrado('cat','aberto')" },
     { label:'Benefícios INSS ativos', value: todos.filter(r => r.tipo==='beneficio' && r._situacao.aberto).length, color:'var(--laranja)', onClick:"irParaSaudeFiltrado('beneficio','aberto')" },
     { label:'Restrições/readaptações vigentes', value: todos.filter(r => r.tipo==='restricao').length, color:'var(--primary)', onClick:"irParaSaudeFiltrado('restricao','')" },
-    { label:'Reavaliações próximas (≤30d)', value: todos.filter(r => r.tipo==='restricao' && ['vermelho','laranja'].includes(r._situacao.cor)).length, color:'var(--vermelho)', onClick:"irParaSaudeFiltrado('restricao','')" },
+    { label:'Reavaliações próximas (≤30d)', value: todos.filter(r => r.tipo==='restricao' && ['vermelho','laranja'].includes(r._situacao.cor)).length, color:'var(--vermelho)', onClick:"irParaSaudeFiltrado('restricao','reavaliacao-proxima')" },
   ];
   document.getElementById('saude-kpi-grid').innerHTML = kpis.map(k => `
     <button type="button" class="kpi-card" onclick="${k.onClick}">
@@ -5084,11 +5104,15 @@ function renderSaudeGraficos(){
   const todos = saudeRegistrosCalculados();
 
   const porTipo = {};
+  const chavePorLabelTipo = {};
   todos.forEach(r => {
     const label = (SAUDE_TIPOS[r.tipo] || {}).label || r.tipo;
     porTipo[label] = (porTipo[label] || 0) + 1;
+    chavePorLabelTipo[label] = r.tipo;
   });
-  renderDoughnutChart('chart-saude-tipo', porTipo);
+  renderDoughnutChart('chart-saude-tipo', porTipo, (labelClicado) => {
+    irParaSaudeFiltrado(chavePorLabelTipo[labelClicado] || '', '');
+  });
 
   const porMes = {};
   todos.forEach(r => {
@@ -5098,7 +5122,7 @@ function renderSaudeGraficos(){
     const k = chaveMes(d);
     porMes[k] = (porMes[k] || 0) + 1;
   });
-  renderBarChart('chart-saude-mes', porMes, false);
+  renderBarChart('chart-saude-mes', porMes, false, irParaSaudeFiltradoPorMes);
 }
 
 function dadosSaudeParaExportacao(){
@@ -5335,6 +5359,11 @@ function turmasCalculadas(){
   return (state.turmas||[]).map(t => ({ ...t, _situacao: calcularSituacaoTurma(t) }));
 }
 
+// Mês de início clicado na barra do gráfico "por mês" — não tem <select>
+// próprio na tela, então fica só nesta variável até limpar os filtros ou
+// clicar em outro KPI/fatia do gráfico.
+let turmaFiltroMesClicado = '';
+
 function turmasFiltrados(){
   let lista = turmasCalculadas();
   const busca = normalizarTexto(document.getElementById('tu-f-busca')?.value || '');
@@ -5343,6 +5372,7 @@ function turmasFiltrados(){
   if(busca) lista = lista.filter(t => normalizarTexto(t.tipoTreinamento).includes(busca) || normalizarTexto(t.instrutor).includes(busca) || normalizarTexto(t.local).includes(busca));
   if(fTipo) lista = lista.filter(t => t.tipoTreinamento === fTipo);
   if(fStatus) lista = lista.filter(t => t._situacao.chave === fStatus);
+  if(turmaFiltroMesClicado) lista = lista.filter(t => t.dataInicio && chaveMes(parseISOLocal(t.dataInicio)) === turmaFiltroMesClicado);
   return lista.sort((a,b) => String(b.dataInicio||'').localeCompare(String(a.dataInicio||'')));
 }
 
@@ -5350,7 +5380,17 @@ function limparFiltrosTurma(){
   document.getElementById('tu-f-busca').value = '';
   document.getElementById('tu-f-tipo').value = '';
   document.getElementById('tu-f-status').value = '';
+  turmaFiltroMesClicado = '';
   renderTreinamentos();
+}
+
+function irParaTreinamentosFiltradoPorMes(mes){
+  document.getElementById('tu-f-busca').value = '';
+  document.getElementById('tu-f-tipo').value = '';
+  document.getElementById('tu-f-status').value = '';
+  turmaFiltroMesClicado = mes;
+  renderTreinamentos();
+  document.getElementById('turma-body')?.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 function popularFiltroTipoTurma(){
@@ -5365,7 +5405,9 @@ function irParaTreinamentosFiltrado(tipo, status){
   const selStatus = document.getElementById('tu-f-status');
   if(selTipo) selTipo.value = tipo || '';
   if(selStatus) selStatus.value = status || '';
+  turmaFiltroMesClicado = '';
   renderTreinamentos();
+  document.getElementById('turma-body')?.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 function renderTreinamentosKPIs(){
@@ -5390,7 +5432,9 @@ function renderTreinamentosGraficos(){
   const todas = turmasCalculadas();
   const porTipo = {};
   todas.forEach(t => { const k = t.tipoTreinamento || 'Não informado'; porTipo[k] = (porTipo[k]||0) + 1; });
-  renderDoughnutChart('chart-turma-tipo', porTipo);
+  renderDoughnutChart('chart-turma-tipo', porTipo, (labelClicado) => {
+    irParaTreinamentosFiltrado(labelClicado === 'Não informado' ? '' : labelClicado, '');
+  });
 
   const porMes = {};
   todas.forEach(t => {
@@ -5400,7 +5444,7 @@ function renderTreinamentosGraficos(){
     const k = chaveMes(d);
     porMes[k] = (porMes[k]||0) + 1;
   });
-  renderBarChart('chart-turma-mes', porMes, false);
+  renderBarChart('chart-turma-mes', porMes, false, irParaTreinamentosFiltradoPorMes);
 }
 
 function renderTreinamentos(){
@@ -6001,6 +6045,11 @@ function pgrRegistrosCalculados(){
   }));
 }
 
+// Mês de elaboração clicado na barra do gráfico "por mês" — não tem
+// <select> próprio na tela, então fica só nesta variável até limpar os
+// filtros ou clicar em outro KPI/fatia do gráfico.
+let pgrFiltroMesClicado = '';
+
 function pgrFiltrados(){
   let lista = pgrRegistrosCalculados();
   const busca = normalizarTexto(document.getElementById('pgr-f-busca')?.value || '');
@@ -6013,6 +6062,7 @@ function pgrFiltrados(){
   if(fTipo) lista = lista.filter(p => p.tipoPrograma === fTipo);
   if(fStatus === 'vigente') lista = lista.filter(p => !p._situacao.vencido);
   if(fStatus === 'vencido') lista = lista.filter(p => p._situacao.vencido);
+  if(pgrFiltroMesClicado) lista = lista.filter(p => p.dataElaboracao && chaveMes(parseISOLocal(p.dataElaboracao)) === pgrFiltroMesClicado);
   return lista.sort((a,b) => String(b.dataElaboracao||'').localeCompare(String(a.dataElaboracao||'')));
 }
 
@@ -6020,13 +6070,16 @@ function limparFiltrosPgr(){
   document.getElementById('pgr-f-busca').value = '';
   document.getElementById('pgr-f-tipo').value = '';
   document.getElementById('pgr-f-status').value = '';
+  pgrFiltroMesClicado = '';
   renderPgr();
 }
 
 function irParaPgrFiltrado(status){
   const sel = document.getElementById('pgr-f-status');
   if(sel) sel.value = status || '';
+  pgrFiltroMesClicado = '';
   renderPgr();
+  document.getElementById('pgr-body')?.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 function renderPgrKPIs(){
@@ -6035,7 +6088,7 @@ function renderPgrKPIs(){
     { label:'Vigentes', value: todos.filter(p=>!p._situacao.vencido).length, color:'var(--verde)', onClick:"irParaPgrFiltrado('vigente')" },
     { label:'Vencidos', value: todos.filter(p=>p._situacao.vencido).length, color:'var(--vermelho)', onClick:"irParaPgrFiltrado('vencido')" },
     { label:'Itens de risco cadastrados', value: todos.reduce((a,p)=>a+p._totalItens,0), color:'var(--primary)', onClick:"irParaPgrFiltrado('')" },
-    { label:'PPPs gerados automaticamente', value: todos.reduce((a,p)=>a+p._pppsGerados,0), color:'var(--laranja)', onClick:"irParaPgrFiltrado('')" },
+    { label:'PPPs gerados automaticamente', value: todos.reduce((a,p)=>a+p._pppsGerados,0), color:'var(--laranja)', onClick:"goToView('ppp')" },
     { label:'Total de programas', value: todos.length, color:'var(--ink)', onClick:"irParaPgrFiltrado('')" },
   ];
   document.getElementById('pgr-kpi-grid').innerHTML = kpis.map(k => `
@@ -6049,8 +6102,19 @@ function renderPgrKPIs(){
 function renderPgrGraficos(){
   const todos = pgrRegistrosCalculados();
   const porTipo = {};
-  todos.forEach(p => { const k = PGR_TIPOS[p.tipoPrograma] || p.tipoPrograma || 'Não informado'; porTipo[k] = (porTipo[k]||0) + 1; });
-  renderDoughnutChart('chart-pgr-tipo', porTipo);
+  const chavePorLabelTipo = {};
+  todos.forEach(p => {
+    const k = PGR_TIPOS[p.tipoPrograma] || p.tipoPrograma || 'Não informado';
+    porTipo[k] = (porTipo[k]||0) + 1;
+    chavePorLabelTipo[k] = p.tipoPrograma;
+  });
+  renderDoughnutChart('chart-pgr-tipo', porTipo, (labelClicado) => {
+    const selTipo = document.getElementById('pgr-f-tipo');
+    if(selTipo) selTipo.value = chavePorLabelTipo[labelClicado] || '';
+    pgrFiltroMesClicado = '';
+    renderPgr();
+    document.getElementById('pgr-body')?.scrollIntoView({ behavior:'smooth', block:'start' });
+  });
 
   const porMes = {};
   todos.forEach(p => {
@@ -6060,7 +6124,14 @@ function renderPgrGraficos(){
     const k = chaveMes(d);
     porMes[k] = (porMes[k]||0) + 1;
   });
-  renderBarChart('chart-pgr-mes', porMes, false);
+  renderBarChart('chart-pgr-mes', porMes, false, (mesClicado) => {
+    document.getElementById('pgr-f-busca').value = '';
+    document.getElementById('pgr-f-tipo').value = '';
+    document.getElementById('pgr-f-status').value = '';
+    pgrFiltroMesClicado = mesClicado;
+    renderPgr();
+    document.getElementById('pgr-body')?.scrollIntoView({ behavior:'smooth', block:'start' });
+  });
 }
 
 function renderPgr(){
@@ -6401,6 +6472,11 @@ function pppRegistrosCalculados(){
   }).filter(r => r._colaborador);
 }
 
+// Mês de início clicado na barra do gráfico "por mês" — não tem <select>
+// próprio na tela, então fica só nesta variável até limpar os filtros ou
+// clicar em outro KPI/fatia do gráfico.
+let pppFiltroMesClicado = '';
+
 function pppFiltrados(){
   let lista = pppRegistrosCalculados();
   const busca = normalizarTexto(document.getElementById('ppp-f-busca')?.value || '');
@@ -6413,6 +6489,7 @@ function pppFiltrados(){
   if(fStatus === 'pendente') lista = lista.filter(r => r._situacao.semEmissao);
   if(fStatus === 'epi-nao') lista = lista.filter(r => r.epiEficaz === 'nao');
   if(fStatus === 'epc-nao') lista = lista.filter(r => r.epcEficaz === 'nao');
+  if(pppFiltroMesClicado) lista = lista.filter(r => r.dataInicio && chaveMes(parseISOLocal(r.dataInicio)) === pppFiltroMesClicado);
   return lista.sort((a,b) => String(b.dataInicio||'').localeCompare(String(a.dataInicio||'')));
 }
 
@@ -6420,6 +6497,7 @@ function limparFiltrosPpp(){
   document.getElementById('ppp-f-busca').value = '';
   document.getElementById('ppp-f-agente').value = '';
   document.getElementById('ppp-f-status').value = '';
+  pppFiltroMesClicado = '';
   renderPpp();
 }
 
@@ -6428,7 +6506,9 @@ function irParaPppFiltrado(agente, status){
   const selStatus = document.getElementById('ppp-f-status');
   if(selAgente) selAgente.value = agente || '';
   if(selStatus) selStatus.value = status || '';
+  pppFiltroMesClicado = '';
   renderPpp();
+  document.getElementById('ppp-body')?.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 function renderPppKPIs(){
@@ -6451,8 +6531,15 @@ function renderPppKPIs(){
 function renderPppGraficos(){
   const todos = pppRegistrosCalculados();
   const porAgente = {};
-  todos.forEach(r => { const k = PPP_AGENTES[r.tipoAgente] || r.tipoAgente || 'Não informado'; porAgente[k] = (porAgente[k]||0) + 1; });
-  renderDoughnutChart('chart-ppp-agente', porAgente);
+  const chavePorLabelAgente = {};
+  todos.forEach(r => {
+    const k = PPP_AGENTES[r.tipoAgente] || r.tipoAgente || 'Não informado';
+    porAgente[k] = (porAgente[k]||0) + 1;
+    chavePorLabelAgente[k] = r.tipoAgente;
+  });
+  renderDoughnutChart('chart-ppp-agente', porAgente, (labelClicado) => {
+    irParaPppFiltrado(chavePorLabelAgente[labelClicado] || '', '');
+  });
 
   const porMes = {};
   todos.forEach(r => {
@@ -6462,7 +6549,14 @@ function renderPppGraficos(){
     const k = chaveMes(d);
     porMes[k] = (porMes[k]||0) + 1;
   });
-  renderBarChart('chart-ppp-mes', porMes, false);
+  renderBarChart('chart-ppp-mes', porMes, false, (mesClicado) => {
+    document.getElementById('ppp-f-busca').value = '';
+    document.getElementById('ppp-f-agente').value = '';
+    document.getElementById('ppp-f-status').value = '';
+    pppFiltroMesClicado = mesClicado;
+    renderPpp();
+    document.getElementById('ppp-body')?.scrollIntoView({ behavior:'smooth', block:'start' });
+  });
 }
 
 function renderPpp(){
