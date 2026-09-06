@@ -3553,20 +3553,42 @@ function openImportModal(){
   document.getElementById('modal-importar').classList.remove('hidden');
 }
 function closeImportModal(){ document.getElementById('modal-importar').classList.add('hidden'); openImportModal_reset(); }
-function openImportModal_reset(){ state.importRows = []; state.importHeaders = []; state.importMapping = {}; }
-
-// Sugere o melhor campo do sistema para um cabeçalho de coluna da planilha,
-// comparando a versão normalizada (sem acento/maiúsculas) contra o dicionário de sinônimos.
-function sugerirCampo(cabecalho){
-  const norm = normalizarTexto(cabecalho);
-  for(const [campo, sinonimos] of Object.entries(DICIONARIO_CAMPOS)){
-    if(sinonimos.some(s => normalizarTexto(s) === norm)) return campo;
-  }
-  for(const [campo, sinonimos] of Object.entries(DICIONARIO_CAMPOS)){
-    if(sinonimos.some(s => norm.includes(normalizarTexto(s)) || normalizarTexto(s).includes(norm))) return campo;
-  }
-  return '';
+function openImportModal_reset(){
+  state.importRows = []; state.importHeaders = []; state.importMapping = {};
+  importWorkbook = null; importAbaAtual = ''; importAbasComDados = [];
 }
+
+// Sugere o mapeamento de TODAS as colunas de uma vez (mesma lógica usada na
+// importação de ASO): casamento exato primeiro, sempre prioritário; depois
+// aproximado (substring) só pras colunas que sobraram — e cada campo do
+// sistema só pode ser sugerido pra UMA coluna, pra colunas parecidas nunca
+// disputarem o mesmo campo e uma sobrescrever a sugestão certa da outra.
+function sugerirMapeamentoGeral(cabecalhos){
+  const sugestoes = new Array(cabecalhos.length).fill('');
+  const camposUsados = new Set();
+  cabecalhos.forEach((cab, i) => {
+    const norm = normalizarTexto(cab);
+    if(!norm) return;
+    for(const [campo, sinonimos] of Object.entries(DICIONARIO_CAMPOS)){
+      if(camposUsados.has(campo)) continue;
+      if(sinonimos.some(s => normalizarTexto(s) === norm)){ sugestoes[i] = campo; camposUsados.add(campo); break; }
+    }
+  });
+  cabecalhos.forEach((cab, i) => {
+    if(sugestoes[i]) return;
+    const norm = normalizarTexto(cab);
+    if(!norm) return;
+    for(const [campo, sinonimos] of Object.entries(DICIONARIO_CAMPOS)){
+      if(camposUsados.has(campo)) continue;
+      if(sinonimos.some(s => norm.includes(normalizarTexto(s)) || normalizarTexto(s).includes(norm))){ sugestoes[i] = campo; camposUsados.add(campo); break; }
+    }
+  });
+  return sugestoes;
+}
+
+let importWorkbook = null; // workbook do SheetJS, mantido em memória pra poder trocar de aba
+let importAbaAtual = ''; // nome da aba atualmente selecionada
+let importAbasComDados = []; // nomes das abas que têm pelo menos uma linha preenchida
 
 function handleFileSelect(evt){
   const file = evt.target.files[0];
@@ -3576,11 +3598,24 @@ function handleFileSelect(evt){
     try{
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type:'array', cellDates:false });
-      const primeiraAba = wb.SheetNames[0];
-      const linhas = XLSX.utils.sheet_to_json(wb.Sheets[primeiraAba], { header:1, raw:true, defval:'' });
-      if(!linhas.length){ showToast('A planilha parece estar vazia.', 'aviso'); return; }
-      const cabecalhos = linhas[0].map(h => String(h||'').trim()).filter(h => h !== '');
-      const corpo = linhas.slice(1).filter(l => l.some(c => c !== ''));
+      importWorkbook = wb;
+      // Ignora abas totalmente vazias (comuns em planilhas com abas de
+      // gráfico/dashboard/rascunho não usadas).
+      importAbasComDados = wb.SheetNames.filter(nome => {
+        const linhas = XLSX.utils.sheet_to_json(wb.Sheets[nome], { header:1, raw:true, defval:'' });
+        return linhas.some(l => l.some(c => String(c).trim() !== ''));
+      });
+      if(!importAbasComDados.length){ showToast('A planilha parece estar vazia.', 'aviso'); return; }
+      // Escolhe como aba inicial a que tem mais linhas de dados — planilhas
+      // de RH costumam ter várias abas auxiliares além da principal.
+      let melhorAba = importAbasComDados[0], melhorContagem = -1;
+      importAbasComDados.forEach(nome => {
+        const { corpo } = extrairCabecalhoECorpo(wb.Sheets[nome]);
+        if(corpo.length > melhorContagem){ melhorContagem = corpo.length; melhorAba = nome; }
+      });
+      importAbaAtual = melhorAba;
+      const { cabecalhos, corpo } = extrairCabecalhoECorpo(wb.Sheets[melhorAba]);
+      if(!corpo.length){ showToast('Nenhuma linha de dados encontrada na planilha.', 'aviso'); return; }
       state.importHeaders = cabecalhos;
       state.importRows = corpo;
       montarTelaMapeamento();
@@ -3590,6 +3625,17 @@ function handleFileSelect(evt){
     }
   };
   reader.readAsArrayBuffer(file);
+}
+
+// Troca a aba usada pela importação (quando a planilha tem mais de uma com
+// dados) e remonta a tela de mapeamento a partir da nova aba escolhida.
+function trocarAbaImport(nomeAba){
+  if(!importWorkbook || !importWorkbook.Sheets[nomeAba]) return;
+  importAbaAtual = nomeAba;
+  const { cabecalhos, corpo } = extrairCabecalhoECorpo(importWorkbook.Sheets[nomeAba]);
+  state.importHeaders = cabecalhos;
+  state.importRows = corpo;
+  montarTelaMapeamento();
 }
 
 function montarTelaMapeamento(){
@@ -3620,9 +3666,19 @@ function montarTelaMapeamento(){
     {key:'observacoes', label:'Observações'},
   ];
 
+  const seletorAba = importAbasComDados.length > 1 ? `
+    <div class="md:col-span-2 mb-2 pb-3" style="border-bottom:1px dashed var(--border);">
+      <label class="field-label">Aba da planilha</label>
+      <select class="field-select" onchange="trocarAbaImport(this.value)">
+        ${importAbasComDados.map(nome => `<option value="${escapeHtml(nome)}" ${nome===importAbaAtual?'selected':''}>${escapeHtml(nome)}</option>`).join('')}
+      </select>
+      <p class="text-xs mt-1" style="color:var(--ink-soft);">Esta planilha tem mais de uma aba com dados — escolhemos automaticamente a que parece ter os registros, mas você pode trocar.</p>
+    </div>` : '';
+
   state.importMapping = {};
-  document.getElementById('mapping-grid').innerHTML = state.importHeaders.map((cab, i) => {
-    const sugestao = sugerirCampo(cab);
+  const sugestoes = sugerirMapeamentoGeral(state.importHeaders);
+  document.getElementById('mapping-grid').innerHTML = seletorAba + state.importHeaders.map((cab, i) => {
+    const sugestao = sugestoes[i];
     state.importMapping[i] = sugestao;
     return `<div>
       <label class="field-label">Coluna da planilha: "${escapeHtml(cab)}"</label>
@@ -3643,9 +3699,13 @@ function chaveColaborador(obj){
 }
 
 function confirmImport(){
-  let treinamentosImportados = 0, linhasIgnoradas = 0, duplicados = 0, colaboradoresNovos = 0, linhasComErro = 0;
+  let treinamentosImportados = 0, linhasIgnoradas = 0, duplicados = 0, colaboradoresNovos = 0, colaboradoresAtualizados = 0, linhasComErro = 0;
   const mapaInverso = {}; // idx coluna -> campo sistema
   Object.entries(state.importMapping).forEach(([idx, campo]) => { if(campo) mapaInverso[idx] = campo; });
+  // Se nenhuma coluna foi mapeada pra "Tipo de treinamento", é uma planilha
+  // só de cadastro de colaboradores (ex.: roster de RH) — nesse caso, cria/
+  // atualiza o colaborador sem exigir nenhum treinamento na linha.
+  const importandoTreinamentos = Object.values(mapaInverso).includes('tipoTreinamento');
 
   const CAMPOS_COLABORADOR = ['nome','matricula','cpf','empresa','unidade','cliente','contrato','centroCusto','setor','cargo','gestor'];
   const CAMPOS_TREINAMENTO = ['tipoTreinamento','numeroCertificado','dataRealizacao','dataVencimento','validadeMeses','observacoes'];
@@ -3679,9 +3739,15 @@ function confirmImport(){
         if(dRealizacao) bruto.dataVencimento = formatarDataISO(somarMeses(dRealizacao, bruto.validadeMeses));
       }
       if(!bruto.matricula) bruto.matricula = '—';
+      // Às vezes o CPF acaba digitado dentro de "Observações" por engano
+      // (planilhas de RH preenchidas manualmente) — aproveita se detectar
+      // o formato e não houver CPF mapeado de verdade.
+      if(!bruto.cpf && bruto.observacoes && /^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(bruto.observacoes)) bruto.cpf = bruto.observacoes;
 
-      // Só importa linhas com, no mínimo, nome e tipo de treinamento identificados.
-      if(!bruto.nome || !bruto.tipoTreinamento){ linhasIgnoradas++; return; }
+      // Sempre exige nome. Só exige tipo de treinamento quando a planilha
+      // realmente tem essa coluna mapeada — senão é um import de cadastro
+      // (colaborador-only), sem nenhum treinamento por linha.
+      if(!bruto.nome || (importandoTreinamentos && !bruto.tipoTreinamento)){ linhasIgnoradas++; return; }
 
       const chave = chaveColaborador(bruto);
       let colaborador = indiceColaboradores[chave];
@@ -3693,8 +3759,12 @@ function confirmImport(){
         colaboradoresNovos++;
       } else {
         // Preenche campos do colaborador que ainda estejam vazios com dados desta linha.
-        CAMPOS_COLABORADOR.forEach(campo => { if(!colaborador[campo] && bruto[campo]) colaborador[campo] = bruto[campo]; });
+        let mudou = false;
+        CAMPOS_COLABORADOR.forEach(campo => { if(!colaborador[campo] && bruto[campo]){ colaborador[campo] = bruto[campo]; mudou = true; } });
+        if(mudou) colaboradoresAtualizados++;
       }
+
+      if(!importandoTreinamentos) return; // cadastro puro: só cria/atualiza o colaborador, sem treinamento
 
       // Evita duplicar o mesmo treinamento (mesmo tipo + mesma data de realização) para o colaborador.
       const jaExiste = (colaborador.treinamentos||[]).some(t => t.tipoTreinamento === bruto.tipoTreinamento && t.dataRealizacao === bruto.dataRealizacao);
@@ -3725,9 +3795,11 @@ function confirmImport(){
   document.getElementById('import-confirm-btn').classList.add('hidden');
   document.getElementById('import-step-3').classList.remove('hidden');
   document.getElementById('import-summary-text').textContent =
-    `${treinamentosImportados} treinamento(s)/documento(s) importado(s) em ${colaboradoresNovos} novo(s) colaborador(es)`
+    (importandoTreinamentos
+      ? `${treinamentosImportados} treinamento(s)/documento(s) importado(s) em ${colaboradoresNovos} novo(s) colaborador(es)`
+      : `${colaboradoresNovos} novo(s) colaborador(es) cadastrado(s)` + (colaboradoresAtualizados ? ` · ${colaboradoresAtualizados} já existente(s) atualizado(s)` : ''))
     + (duplicados ? ` · ${duplicados} duplicado(s) ignorado(s)` : '')
-    + (linhasIgnoradas ? ` · ${linhasIgnoradas} linha(s) ignorada(s) por falta de nome/tipo` : '')
+    + (linhasIgnoradas ? ` · ${linhasIgnoradas} linha(s) ignorada(s) por falta de nome` + (importandoTreinamentos ? '/tipo' : '') : '')
     + (linhasComErro ? ` · ${linhasComErro} linha(s) com erro (dados inválidos, não importadas)` : '') + '.';
   renderAll();
 }
@@ -4808,6 +4880,9 @@ let asoImportLinhas = []; // linhas já processadas, aguardando confirmação na
 let asoImportCabecalhos = []; // cabeçalhos brutos lidos do arquivo
 let asoImportCorpo = []; // linhas de dados brutas lidas do arquivo (sem cabeçalho)
 let asoImportMapeamento = {}; // índice da coluna -> campo do sistema, ajustável pelo usuário
+let asoImportWorkbook = null; // workbook do SheetJS, mantido em memória pra poder trocar de aba
+let asoImportAbaAtual = ''; // nome da aba atualmente selecionada
+let asoImportAbasComDados = []; // nomes das abas que têm pelo menos uma linha preenchida
 
 const ASO_TIPO_SINONIMOS = {
   admissional: ['admissional'],
@@ -4896,16 +4971,52 @@ const ASO_IMPORT_CAMPOS_SISTEMA = [
 // Sugere o melhor campo do sistema para um cabeçalho de coluna, comparando a
 // versão normalizada (sem acento/maiúsculas) contra o dicionário de sinônimos
 // de ASO — é só um ponto de partida: o usuário confere e ajusta na tela.
-function sugerirCampoAso(cabecalho){
-  const norm = normalizarTexto(cabecalho);
-  if(!norm) return '';
-  for(const [campo, sinonimos] of Object.entries(ASO_IMPORT_SINONIMOS)){
-    if(sinonimos.some(s => normalizarTexto(s) === norm)) return campo;
+// Sugere o mapeamento de TODAS as colunas de uma vez, em duas fases:
+// 1) casamento EXATO do cabeçalho — sempre prioritário, nunca disputado;
+// 2) casamento aproximado (substring) só pras colunas que sobraram.
+// Cada campo do sistema só pode ser sugerido pra UMA coluna: sem isso,
+// colunas parecidas (ex.: "Data de vencimento" e "Ano ASO Vencimento", que
+// contém "vencimento" mas é só um número de ano) disputariam o mesmo campo
+// e a última da planilha sobrescreveria a sugestão certa silenciosamente.
+function sugerirMapeamentoAso(cabecalhos){
+  const sugestoes = new Array(cabecalhos.length).fill('');
+  const camposUsados = new Set();
+  cabecalhos.forEach((cab, i) => {
+    const norm = normalizarTexto(cab);
+    if(!norm) return;
+    for(const [campo, sinonimos] of Object.entries(ASO_IMPORT_SINONIMOS)){
+      if(camposUsados.has(campo)) continue;
+      if(sinonimos.some(s => normalizarTexto(s) === norm)){ sugestoes[i] = campo; camposUsados.add(campo); break; }
+    }
+  });
+  cabecalhos.forEach((cab, i) => {
+    if(sugestoes[i]) return;
+    const norm = normalizarTexto(cab);
+    if(!norm) return;
+    for(const [campo, sinonimos] of Object.entries(ASO_IMPORT_SINONIMOS)){
+      if(camposUsados.has(campo)) continue;
+      if(sinonimos.some(s => norm.includes(normalizarTexto(s)))){ sugestoes[i] = campo; camposUsados.add(campo); break; }
+    }
+  });
+  return sugestoes;
+}
+
+// Acha a linha de cabeçalho de verdade dentro de uma aba: muita planilha
+// exportada de sistema de RH tem linhas de título/em branco no topo (ex.:
+// "CONTROLE DE PERIÓDICOS" numa linha isolada, depois linhas vazias) antes
+// da linha com os nomes das colunas — então em vez de assumir que o
+// cabeçalho é sempre a primeira linha, pega a linha com mais células
+// preenchidas dentre as primeiras 20.
+function extrairCabecalhoECorpo(planilha){
+  const linhas = XLSX.utils.sheet_to_json(planilha, { header:1, raw:true, defval:'' });
+  let idxCabecalho = 0, maxPreenchidas = -1;
+  for(let i = 0; i < Math.min(20, linhas.length); i++){
+    const preenchidas = linhas[i].filter(c => String(c).trim() !== '').length;
+    if(preenchidas > maxPreenchidas){ maxPreenchidas = preenchidas; idxCabecalho = i; }
   }
-  for(const [campo, sinonimos] of Object.entries(ASO_IMPORT_SINONIMOS)){
-    if(sinonimos.some(s => norm.includes(normalizarTexto(s)))) return campo;
-  }
-  return '';
+  const cabecalhos = (linhas[idxCabecalho] || []).map(h => String(h||'').trim());
+  const corpo = linhas.slice(idxCabecalho + 1).filter(l => l.some(c => String(c).trim() !== ''));
+  return { cabecalhos, corpo };
 }
 
 function onAsoImportFileSelect(evt){
@@ -4916,11 +5027,24 @@ function onAsoImportFileSelect(evt){
     try{
       const data = new Uint8Array(e.target.result);
       const wb = XLSX.read(data, { type:'array', cellDates:false });
-      const primeiraAba = wb.SheetNames[0];
-      const linhas = XLSX.utils.sheet_to_json(wb.Sheets[primeiraAba], { header:1, raw:true, defval:'' });
-      if(!linhas.length){ showToast('A planilha parece estar vazia.', 'aviso'); evt.target.value = ''; return; }
-      const cabecalhos = linhas[0].map(h => String(h||'').trim());
-      const corpo = linhas.slice(1).filter(l => l.some(c => c !== ''));
+      asoImportWorkbook = wb;
+      // Ignora abas totalmente vazias (comuns em planilhas com abas de
+      // gráfico/rascunho não utilizadas).
+      asoImportAbasComDados = wb.SheetNames.filter(nome => {
+        const linhas = XLSX.utils.sheet_to_json(wb.Sheets[nome], { header:1, raw:true, defval:'' });
+        return linhas.some(l => l.some(c => String(c).trim() !== ''));
+      });
+      if(!asoImportAbasComDados.length){ showToast('A planilha parece estar vazia.', 'aviso'); evt.target.value = ''; return; }
+      // Escolhe como aba inicial a que tem mais linhas de dados — planilhas
+      // de RH costumam ter várias abas auxiliares (cadastro, dashboard,
+      // relatório) além da aba principal de controle.
+      let melhorAba = asoImportAbasComDados[0], melhorContagem = -1;
+      asoImportAbasComDados.forEach(nome => {
+        const { corpo } = extrairCabecalhoECorpo(wb.Sheets[nome]);
+        if(corpo.length > melhorContagem){ melhorContagem = corpo.length; melhorAba = nome; }
+      });
+      asoImportAbaAtual = melhorAba;
+      const { cabecalhos, corpo } = extrairCabecalhoECorpo(wb.Sheets[melhorAba]);
       if(!corpo.length){ showToast('Nenhuma linha de dados encontrada na planilha.', 'aviso'); evt.target.value = ''; return; }
       asoImportCabecalhos = cabecalhos;
       asoImportCorpo = corpo;
@@ -4935,6 +5059,17 @@ function onAsoImportFileSelect(evt){
   reader.readAsArrayBuffer(file);
 }
 
+// Troca a aba usada pela importação (quando a planilha tem mais de uma com
+// dados) e remonta a tela de mapeamento a partir da nova aba escolhida.
+function trocarAbaAsoImport(nomeAba){
+  if(!asoImportWorkbook || !asoImportWorkbook.Sheets[nomeAba]) return;
+  asoImportAbaAtual = nomeAba;
+  const { cabecalhos, corpo } = extrairCabecalhoECorpo(asoImportWorkbook.Sheets[nomeAba]);
+  asoImportCabecalhos = cabecalhos;
+  asoImportCorpo = corpo;
+  montarMapeamentoAsoImport();
+}
+
 // Passo 1: mostra uma coluna da planilha de cada vez com um seletor do campo
 // do sistema correspondente — pré-preenchido com a melhor sugestão, mas
 // totalmente editável, pra se adaptar a qualquer layout de planilha.
@@ -4946,10 +5081,20 @@ function montarMapeamentoAsoImport(){
   document.getElementById('aso-import-confirmar-btn').classList.add('hidden');
   document.getElementById('aso-import-row-count').textContent = asoImportCorpo.length;
 
+  const seletorAba = asoImportAbasComDados.length > 1 ? `
+    <div class="md:col-span-2 mb-2 pb-3" style="border-bottom:1px dashed var(--border);">
+      <label class="field-label">Aba da planilha</label>
+      <select class="field-select" onchange="trocarAbaAsoImport(this.value)">
+        ${asoImportAbasComDados.map(nome => `<option value="${escapeHtml(nome)}" ${nome===asoImportAbaAtual?'selected':''}>${escapeHtml(nome)}</option>`).join('')}
+      </select>
+      <p class="text-xs mt-1" style="color:var(--ink-soft);">Esta planilha tem mais de uma aba com dados — escolhemos automaticamente a que parece ter os registros de ASO, mas você pode trocar.</p>
+    </div>` : '';
+
   asoImportMapeamento = {};
   let sugestaoUnidadeDias = false;
+  const sugestoes = sugerirMapeamentoAso(asoImportCabecalhos);
   const linhasMapeamento = asoImportCabecalhos.map((cab, i) => {
-    const sugestao = sugerirCampoAso(cab);
+    const sugestao = sugestoes[i];
     asoImportMapeamento[i] = sugestao;
     if(sugestao === 'validadeMeses' && normalizarTexto(cab).includes('dia')) sugestaoUnidadeDias = true;
     return `<div>
@@ -4959,7 +5104,7 @@ function montarMapeamentoAsoImport(){
       </select>
     </div>`;
   }).join('');
-  document.getElementById('aso-mapping-grid').innerHTML = linhasMapeamento + `
+  document.getElementById('aso-mapping-grid').innerHTML = seletorAba + linhasMapeamento + `
     <div>
       <label class="field-label">Unidade da coluna de validade (se alguma coluna foi mapeada para "Validade")</label>
       <select id="aso-import-unidade-validade" class="field-select">
@@ -4997,15 +5142,25 @@ function continuarParaRevisaoAsoImport(){
 
   asoImportLinhas = asoImportCorpo.map((linha, idx) => {
     const pega = (campo) => mapaInverso[campo] !== undefined ? String(linha[mapaInverso[campo]] ?? '').trim() : '';
+    // Datas do Excel muitas vezes chegam como NÚMERO (serial de data nativo
+    // da planilha), não como texto — precisa manter o valor bruto (sem
+    // transformar em string antes) pra parseDataFlexivel reconhecer e
+    // converter certo. Se stringificar primeiro (ex.: 46146 -> "46146"),
+    // vira um número de 5 dígitos que o parser de texto interpreta errado
+    // (como se fosse o ano 46146).
+    const pegaData = (campo) => {
+      if(mapaInverso[campo] === undefined) return null;
+      const bruto = linha[mapaInverso[campo]];
+      if(bruto === '' || bruto === null || bruto === undefined) return null;
+      return parseDataFlexivel(bruto);
+    };
     const nomeBusca = pega('colaborador');
     const matriculaBusca = pega('matricula');
     const cpfBusca = pega('cpf');
     const colaborador = resolverColaboradorImport(nomeBusca, matriculaBusca, cpfBusca);
-    const dataRealizacaoRaw = pega('dataRealizacao');
-    const dataRealizacaoParsed = dataRealizacaoRaw ? parseDataFlexivel(dataRealizacaoRaw) : null;
+    const dataRealizacaoParsed = pegaData('dataRealizacao');
     const dataRealizacao = dataRealizacaoParsed ? formatarDataISO(dataRealizacaoParsed) : '';
-    const dataVencimentoRaw = pega('dataVencimento');
-    const dataVencimentoParsed = dataVencimentoRaw ? parseDataFlexivel(dataVencimentoRaw) : null;
+    const dataVencimentoParsed = pegaData('dataVencimento');
     let dataVencimento = dataVencimentoParsed ? formatarDataISO(dataVencimentoParsed) : '';
     let validadeMeses;
     let autoVencimento = false;
@@ -5073,6 +5228,9 @@ function closeAsoImportModal(){
   asoImportCabecalhos = [];
   asoImportCorpo = [];
   asoImportMapeamento = {};
+  asoImportWorkbook = null;
+  asoImportAbaAtual = '';
+  asoImportAbasComDados = [];
 }
 
 function confirmarImportacaoAso(){
