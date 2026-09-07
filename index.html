@@ -2605,7 +2605,7 @@ function registrosCalculados(){
 }
 
 function totalColaboradores(){
-  return state.records.filter(c => (c.treinamentos||[]).length > 0).length;
+  return state.records.length;
 }
 
 function renderSidebarCounts(){
