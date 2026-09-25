@@ -19,6 +19,7 @@ Basta abrir o arquivo em qualquer navegador.
 - **Exportação** para Excel e PDF, impressão.
 - **Painel de Configurações completo**: identidade visual (nome, logo, favicon), aparência (cores, tema claro/escuro/automático, fonte), tipos de treinamento, módulos do menu, janelas de alerta, backup (exportar/importar/limpar).
 - **Saúde / INSS (SESMT)**: aba dedicada para afastamentos/atestados, CAT, benefícios previdenciários (auxílio-doença, acidentário etc.) e restrições/readaptação de função — vinculados aos colaboradores já cadastrados, com KPIs, filtros e alertas de reavaliação próxima.
+- **Controle por Função**: matriz de NRs, treinamentos e ASO exigidos por cargo (e setor opcional), cruzada com os cadastros — mostra quem está em dia, vencendo, vencido ou nunca realizou o que a função exige, com KPIs, gráficos, atalho para registrar a pendência e exportação para Excel.
 - **Menu lateral recolhível** (trilha de ícones).
 - **Senha de acesso opcional**, com tela de bloqueio e recuperação (local ou por e-mail via `mailto:`).
 
