@@ -233,6 +233,17 @@ table.data-table tbody tr:last-child td{ border-bottom:none; }
 #topbar{ position:relative; z-index:5; box-shadow:0 2px 14px rgba(16,21,38,.05); }
 [data-theme="dark"] #topbar{ box-shadow:0 2px 14px rgba(0,0,0,.3); }
 
+#search-close-btn{ display:none; }
+@media (max-width: 767px){
+  #search-wrap.mobile-search-open{
+    display:flex !important; align-items:center;
+    position:absolute; inset:0; z-index:10; width:auto;
+    background:var(--surface); padding:0 1rem;
+  }
+  #search-wrap.mobile-search-open #global-search{ padding-right:2.25rem; }
+  #search-wrap.mobile-search-open #search-close-btn{ display:block; }
+}
+
 /* Faixa de destaque do Dashboard */
 .dashboard-hero{
   background:linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
@@ -480,10 +491,16 @@ table.matrix-table tbody tr:hover td{ filter:brightness(.98); }
         <h1 id="view-title" class="text-lg font-extrabold leading-tight">Dashboard Geral</h1>
         <p id="view-subtitle" class="text-xs" style="color:var(--ink-soft);">Visão consolidada dos vencimentos de documentos obrigatórios de SST</p>
       </div>
-      <div class="relative w-64 hidden md:block">
+      <div class="relative w-64 hidden md:block" id="search-wrap">
         <svg class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2" style="color:var(--ink-faint);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input id="global-search" type="text" placeholder="Buscar colaborador ou matrícula..." class="field-input pl-9" oninput="onGlobalSearch()">
+        <button type="button" class="md:hidden" id="search-close-btn" onclick="toggleMobileSearch()" style="position:absolute; right:3px; top:50%; transform:translateY(-50%); color:var(--ink-faint); padding:.35rem;" title="Fechar busca">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
+      <button class="btn btn-outline md:hidden !px-2.5" id="mobile-search-btn" onclick="toggleMobileSearch()" title="Buscar">
+        <i class="fa-solid fa-magnifying-glass"></i>
+      </button>
       <button class="btn btn-outline" id="theme-toggle-btn" title="Alternar modo claro/escuro" onclick="alternarTema()">
         <i class="fa-solid fa-moon" id="theme-toggle-icon"></i>
       </button>
@@ -2499,6 +2516,15 @@ function validadePadraoPorTipo(nomeTipo){
 function abrirSidebarMobile(){
   document.getElementById('sidebar').classList.remove('-translate-x-full');
   document.getElementById('sidebar-overlay').classList.remove('hidden');
+}
+
+// Em telas pequenas a busca global fica escondida (sem espaço no topbar) —
+// este botão abre ela como uma faixa cobrindo o topbar, por cima do resto.
+function toggleMobileSearch(){
+  const wrap = document.getElementById('search-wrap');
+  const abrindo = !wrap.classList.contains('mobile-search-open');
+  wrap.classList.toggle('mobile-search-open', abrindo);
+  if(abrindo) document.getElementById('global-search').focus();
 }
 function fecharSidebarMobile(){
   document.getElementById('sidebar').classList.add('-translate-x-full');
