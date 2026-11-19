@@ -5,3 +5,7 @@ backup-sst-vencimentos-*.json
 
 .vercel
 .env*
+
+# cripto-monitor
+cripto-monitor/estado.json
+__pycache__/

@@ -1,0 +1,34 @@
+{
+  "_comentario": "Plano arrojado combinado em out/nov de 2026. Ajuste aqui quando mudar o plano; os segredos ficam no arquivo .env, nunca aqui.",
+
+  "ordens_compra_btc": [58000, 52000, 46000],
+  "ordem_extra_btc": 40000,
+  "suportes_btc": [60000, 57500, 53000, 47500, 43000],
+  "resistencias_btc": [74000, 80000],
+  "confirmacao_btc": 80000,
+  "alvos_venda_btc": [175000, 200000, 225000],
+  "distancia_atencao_pct": 5,
+
+  "precos_medios_usd": {
+    "BTC": 113669.82,
+    "SOL": 248.12,
+    "ETH": 3721.66,
+    "NEAR": 5.71,
+    "PENDLE": 6.12,
+    "UNI": 13.45,
+    "PEPE": 0.000021
+  },
+  "alerta_preco_medio_pct": 10,
+
+  "radar": {
+    "top_por_volume": 40,
+    "ignorar": ["USDC", "FDUSD", "TUSD", "USDP", "DAI", "EUR", "BRL", "WBTC", "WBETH", "BTC", "PAXG",
+                "PEPE", "SHIB", "DOGE", "BONK", "FLOKI", "WIF", "MEME", "TRUMP", "NOT"],
+    "max_resultados": 3
+  },
+
+  "watch": {
+    "intervalo_min": 5,
+    "queda_forte_24h_pct": 8
+  }
+}
